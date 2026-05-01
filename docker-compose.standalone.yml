@@ -1,0 +1,12 @@
+# 不挂载项目目录，容器内使用构建时拷贝的代码（解决「容器里看不到项目」）
+# 使用：docker compose -f docker-compose.yml -f docker-compose.standalone.yml up --build
+# 然后访问 http://localhost:3000（无热更新，改代码需重新 build）
+# 业务数据在 PostgreSQL（pgdata 卷）；./data 挂载与宿主机共享目录（导出等）
+
+services:
+  api:
+    volumes:
+      - ./data:/app/data
+
+  web:
+    volumes: []
