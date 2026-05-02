@@ -1,0 +1,141 @@
+[
+  {
+    "id": "liuxiantang",
+    "name": "柳仙堂",
+    "aliases": ["娄门外柳仙堂"],
+    "ancientSummary": "立春前一日，郡守率僚属在娄门外柳仙堂迎春，民众争摸春牛祈求丰年。",
+    "modernSummary": "今在娄门一带已难见原貌，作为迎春旧址主要见于文献记忆。",
+    "status": "已变迁",
+    "months": ["正月"],
+    "citations": [
+      {
+        "sectionId": "卷一-正月__正月__行春",
+        "chapterTitle": "行春",
+        "quoteText": "先立春一日，郡守率僚属迎春娄门外柳仙堂"
+      }
+    ]
+  },
+  {
+    "id": "xuanmiaoguan",
+    "name": "玄妙观",
+    "aliases": ["圆妙观"],
+    "ancientSummary": "新岁时圆妙观是城内最热闹的游观地，三清殿聚集卖画与灯市人群。",
+    "modernSummary": "对应观前历史街区核心道观，仍是苏州文化与商业活动的重要中心。",
+    "status": "存续",
+    "months": ["正月"],
+    "citations": [
+      {
+        "sectionId": "卷一-正月__正月__拜牌",
+        "chapterTitle": "拜牌",
+        "quoteText": "绅士诣圆妙观三清殿"
+      },
+      {
+        "sectionId": "卷一-正月__正月__新年",
+        "chapterTitle": "新年",
+        "quoteText": "城中圆妙观，尤为游人所争集"
+      }
+    ]
+  },
+  {
+    "id": "panmen",
+    "name": "盘门",
+    "ancientSummary": "立春后迎喜神时，山川城隍坛设于盘门外，观者云集并形成临时集市。",
+    "modernSummary": "今为盘门景区核心区域，仍以城门遗存与传统节俗记忆闻名。",
+    "status": "存续",
+    "months": ["正月"],
+    "citations": [
+      {
+        "sectionId": "卷一-正月__正月__山川坛迎喜",
+        "chapterTitle": "山川坛迎喜",
+        "quoteText": "山川城隍神坛，在盘门外一都"
+      }
+    ]
+  },
+  {
+    "id": "shantang",
+    "name": "山塘",
+    "aliases": ["七里山塘"],
+    "ancientSummary": "清明及春季游俗中，山塘是看会与舟楫游赏的集中地，游人极盛。",
+    "modernSummary": "现为著名历史文化街区，七里山塘景观与游览功能延续至今。",
+    "status": "存续",
+    "months": ["三月", "五月"],
+    "citations": [
+      {
+        "sectionId": "卷三-三月__三月__山塘看会",
+        "chapterTitle": "山塘看会",
+        "quoteText": "游人骈集山塘，号为“看会”"
+      },
+      {
+        "sectionId": "卷三-三月__三月__游春玩景看菜花",
+        "chapterTitle": "游春玩景看菜花",
+        "quoteText": "山塘七里，几无驻足之地"
+      }
+    ]
+  },
+  {
+    "id": "huqiu",
+    "name": "虎丘",
+    "ancientSummary": "清明祭厉坛及春游活动中，虎丘为重要祭祀和游赏节点。",
+    "modernSummary": "今天仍是苏州代表性名胜景区，文化地标地位稳定。",
+    "status": "存续",
+    "months": ["三月"],
+    "citations": [
+      {
+        "sectionId": "卷三-三月__三月__山塘看会",
+        "chapterTitle": "山塘看会",
+        "quoteText": "清明日，官府至虎丘郡厉坛致祭无祀"
+      },
+      {
+        "sectionId": "卷三-三月__三月__游春玩景看菜花",
+        "chapterTitle": "游春玩景看菜花",
+        "quoteText": "虎丘山下，白堤七里，彩舟、画楫，衔尾以游"
+      }
+    ]
+  },
+  {
+    "id": "changmen-xumen",
+    "name": "阊门、胥门",
+    "ancientSummary": "端阳龙船活动遍及阊门、胥门水域，水上竞渡与市集相伴，极为热闹。",
+    "modernSummary": "两门仍是古城重要地标，端午民俗展示在周边水域与街区仍有延续。",
+    "status": "存续",
+    "months": ["五月"],
+    "citations": [
+      {
+        "sectionId": "卷五-五月__五月__划龙船",
+        "chapterTitle": "划龙船",
+        "quoteText": "龙船，阊、胥两门，南、北两濠及枫桥西路水滨皆有之"
+      }
+    ]
+  },
+  {
+    "id": "loumen",
+    "name": "娄门",
+    "ancientSummary": "六月蛇王生日时，娄门内庙宇香火兴盛，民众进香求符。",
+    "modernSummary": "娄门片区仍保有古城门地标属性，相关民间信仰活动多转为历史文化记忆。",
+    "status": "存续",
+    "months": ["六月"],
+    "citations": [
+      {
+        "sectionId": "卷六-六月__六月__蛇王生日",
+        "chapterTitle": "蛇王生日",
+        "quoteText": "进香者骈集于娄门内之庙"
+      }
+    ]
+  },
+  {
+    "id": "fengmen-bingyin",
+    "name": "葑门外冰窨",
+    "aliases": ["葑溪门外冰窨"],
+    "ancientSummary": "伏天卖凉冰与护鲜鱼所需冰源，来自葑门外的大型冰窨系统。",
+    "modernSummary": "冰窨生产体系已退出日常生活，但葑门一带仍可见相关历史记忆。",
+    "status": "已变迁",
+    "months": ["六月"],
+    "citations": [
+      {
+        "sectionId": "卷六-六月__六月__卖凉冰",
+        "chapterTitle": "卖凉冰",
+        "quoteText": "《元和县志》：“冰窨在葑门外，设窨二十四座”"
+      }
+    ]
+  }
+]

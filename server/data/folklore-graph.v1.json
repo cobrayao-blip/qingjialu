@@ -1,0 +1,999 @@
+{
+  "entities": [
+    {
+      "id": "m1",
+      "label": "正月",
+      "type": "time",
+      "description": "岁首之月，万象更新。苏州人忙于迎春、拜年、闹元宵。",
+      "conceptTags": ["岁首更新", "纳吉祈丰", "社群团聚"],
+      "experienceTags": ["灯火通明", "锣鼓喧阗", "节庆氛围"]
+    },
+    {
+      "id": "m2",
+      "label": "二月",
+      "type": "time",
+      "description": "仲春之月，百花生日，惊蛰雷鸣。"
+    },
+    {
+      "id": "m3",
+      "label": "三月",
+      "type": "time",
+      "description": "季春之月，清明祭祖，插杨柳。"
+    },
+    {
+      "id": "m4",
+      "label": "四月",
+      "type": "time",
+      "description": "孟夏之月，立夏见新，轧神仙。"
+    },
+    {
+      "id": "m5",
+      "label": "五月",
+      "type": "time",
+      "description": "仲夏之月，端午竞渡，采药避邪。",
+      "conceptTags": ["辟邪禳灾", "忠义纪念", "时令护生"],
+      "experienceTags": ["鼓声竞渡", "艾草清香", "水岸喧腾"]
+    },
+    {
+      "id": "m6",
+      "label": "六月",
+      "type": "time",
+      "description": "季夏之月，荷花生日，纳凉消暑。"
+    },
+    {
+      "id": "m7",
+      "label": "七月",
+      "type": "time",
+      "description": "孟秋之月，七夕乞巧，中元祭祖。"
+    },
+    {
+      "id": "m8",
+      "label": "八月",
+      "type": "time",
+      "description": "仲秋之月，中秋赏月，虎丘看月。"
+    },
+    {
+      "id": "m9",
+      "label": "九月",
+      "type": "time",
+      "description": "季秋之月，重阳登高，吃重阳糕。"
+    },
+    {
+      "id": "m10",
+      "label": "十月",
+      "type": "time",
+      "description": "孟冬之月，立冬暖炉，祭灶神。"
+    },
+    {
+      "id": "m11",
+      "label": "十一月",
+      "type": "time",
+      "description": "仲冬之月，冬至大如年，吃团圆饭。"
+    },
+    {
+      "id": "m12",
+      "label": "十二月",
+      "type": "time",
+      "description": "季冬之月，腊八喝粥，辞岁迎新。"
+    },
+    {
+      "id": "c1",
+      "label": "行春",
+      "type": "practice",
+      "description": "立春前一日，官府迎春牛，民间摸春牛。",
+      "conceptTags": ["祈岁丰登", "官民同庆", "顺时而作"],
+      "experienceTags": ["仪仗行列", "春郊踏青", "人群围观"],
+      "meta": {
+        "date": "立春前一日",
+        "location": "娄门外柳仙堂"
+      }
+    },
+    {
+      "id": "c2",
+      "label": "闹元宵",
+      "type": "practice",
+      "description": "灯市繁盛，走三桥、打灯谜、放烟火。",
+      "conceptTags": ["驱疫纳福", "节庆共游", "城市夜经济"],
+      "experienceTags": ["灯彩流动", "人潮夜游", "烟火声光"],
+      "meta": {
+        "date": "正月十五",
+        "location": "观前街、山塘街"
+      }
+    },
+    {
+      "id": "c3",
+      "label": "摸春牛",
+      "type": "practice",
+      "description": "民间习俗，谓之“摸摸春牛脚，一世不愁吃”。",
+      "meta": {
+        "date": "立春前一日",
+        "location": "柳仙堂"
+      }
+    },
+    {
+      "id": "c4",
+      "label": "百花生日",
+      "type": "practice",
+      "description": "二月十二日，闺中女郎剪五色纸粘花枝上，谓之赏红。",
+      "meta": {
+        "date": "二月十二日",
+        "location": "闺中/园林"
+      }
+    },
+    {
+      "id": "c5",
+      "label": "清明祭祖",
+      "type": "practice",
+      "description": "上坟祭扫，插杨柳于门，吃青团。",
+      "conceptTags": ["慎终追远", "家族记忆", "春祭礼序"],
+      "experienceTags": ["郊野踏青", "草木新香", "清冷肃穆"],
+      "meta": {
+        "date": "清明节",
+        "location": "郊外墓地"
+      }
+    },
+    {
+      "id": "c6",
+      "label": "走三桥",
+      "type": "practice",
+      "description": "元宵节妇女相率宵行，以却疾病。",
+      "meta": {
+        "date": "元宵节夜",
+        "location": "古城桥梁"
+      }
+    },
+    {
+      "id": "c7",
+      "label": "轧神仙",
+      "type": "practice",
+      "description": "四月十四日吕祖诞辰，万人空巷，谓之轧神仙。",
+      "meta": {
+        "date": "四月十四日",
+        "location": "玄妙观"
+      }
+    },
+    {
+      "id": "c8",
+      "label": "端午竞渡",
+      "type": "practice",
+      "description": "五月初五，龙舟竞渡，吃粽子，挂艾草。",
+      "conceptTags": ["辟邪安康", "同舟竞勇", "节令防疫"],
+      "experienceTags": ["鼓点急促", "水花飞溅", "草药香气"],
+      "meta": {
+        "date": "五月初五",
+        "location": "胥门外、石湖"
+      }
+    },
+    {
+      "id": "c9",
+      "label": "荷花生日",
+      "type": "practice",
+      "description": "六月二十四日，游人云集葑门外荷花荡观荷。",
+      "meta": {
+        "date": "六月二十四日",
+        "location": "葑门外荷花荡"
+      }
+    },
+    {
+      "id": "c10",
+      "label": "七夕乞巧",
+      "type": "practice",
+      "description": "七月初七，妇女陈瓜果于庭，祈求巧艺。",
+      "meta": {
+        "date": "七月初七",
+        "location": "庭院"
+      }
+    },
+    {
+      "id": "c11",
+      "label": "中秋赏月",
+      "type": "practice",
+      "description": "八月十五，阖家团圆，吃月饼，赏明月。",
+      "conceptTags": ["团圆共享", "秋收感恩", "月华审美"],
+      "experienceTags": ["清辉夜色", "果饼甜香", "园亭清谈"],
+      "meta": {
+        "date": "八月十五",
+        "location": "虎丘、石湖"
+      }
+    },
+    {
+      "id": "c12",
+      "label": "重阳登高",
+      "type": "practice",
+      "description": "九月初九，登高远眺，佩茱萸，饮菊花酒。",
+      "conceptTags": ["延年祛病", "登高望远", "孝亲敬老"],
+      "experienceTags": ["秋高气爽", "山风拂面", "菊酒清苦"],
+      "meta": {
+        "date": "九月初九",
+        "location": "上方山"
+      }
+    },
+    {
+      "id": "c13",
+      "label": "冬至团圆",
+      "type": "practice",
+      "description": "冬至夜，阖家团聚饮冬至酒，吃冬至团。",
+      "meta": {
+        "date": "冬至夜",
+        "location": "家中"
+      }
+    },
+    {
+      "id": "c14",
+      "label": "腊八粥",
+      "type": "practice",
+      "description": "腊月初八，以多种谷物果实煮粥，馈送亲友。",
+      "meta": {
+        "date": "腊月初八",
+        "location": "家中/寺庙"
+      }
+    },
+    {
+      "id": "c15",
+      "label": "辞岁",
+      "type": "practice",
+      "description": "除夕之夜，焚香祭祖，守岁迎新。",
+      "meta": {
+        "date": "除夕",
+        "location": "家中"
+      }
+    },
+    {
+      "id": "r1",
+      "label": "郡守",
+      "type": "actor",
+      "description": "地方长官，主持迎春、祭祀等官方仪式。",
+      "meta": {
+        "responsibility": "主持迎春、祭祀等官方仪式，代表官府祈求丰年。"
+      }
+    },
+    {
+      "id": "r2",
+      "label": "优伶",
+      "type": "actor",
+      "description": "戏曲演员，在节日庆典中扮演神仙或历史人物。",
+      "meta": {
+        "responsibility": "在节日庆典中扮演神仙或历史人物，进行戏曲表演。"
+      }
+    },
+    {
+      "id": "r3",
+      "label": "士庶",
+      "type": "actor",
+      "description": "普通民众，是民俗活动的主要参与者。",
+      "conceptTags": ["社群参与", "日常秩序", "共同体认同"],
+      "experienceTags": ["市井喧谈", "节日流动", "邻里互访"],
+      "meta": {
+        "responsibility": "参与各种民俗活动，如游园、祭祖、聚餐等。"
+      }
+    },
+    {
+      "id": "r4",
+      "label": "女郎",
+      "type": "actor",
+      "description": "参与百花生日、七夕乞巧等特定风俗。",
+      "meta": {
+        "responsibility": "参与赏红、乞巧等特定女性民俗，祈求美貌与巧艺。"
+      }
+    },
+    {
+      "id": "r5",
+      "label": "乞儿",
+      "type": "actor",
+      "description": "扮演历史人物，参与迎春仪式。",
+      "meta": {
+        "responsibility": "在迎春仪式中扮演历史人物，增加节日气氛。"
+      }
+    },
+    {
+      "id": "r6",
+      "label": "蚕农",
+      "type": "actor",
+      "description": "四月忙于蚕桑，祈求蚕花茂盛。",
+      "meta": {
+        "responsibility": "负责蚕桑生产，在特定时令祈求蚕神保佑。"
+      }
+    },
+    {
+      "id": "r7",
+      "label": "舟子",
+      "type": "actor",
+      "description": "端午节操纵龙舟的健儿。",
+      "meta": {
+        "responsibility": "在端午节操纵龙舟进行竞渡比赛。"
+      }
+    },
+    {
+      "id": "r8",
+      "label": "商贾",
+      "type": "actor",
+      "description": "节日期间活跃于灯市、庙会的商人。",
+      "meta": {
+        "responsibility": "在灯市、庙会期间经营买卖，活跃节日经济。"
+      }
+    },
+    {
+      "id": "p1",
+      "label": "柳仙堂",
+      "type": "place",
+      "description": "娄门外迎春相关活动的重要地点。"
+    },
+    {
+      "id": "p2",
+      "label": "玄妙观",
+      "type": "place",
+      "description": "轧神仙民俗的核心场所。",
+      "conceptTags": ["道观信仰", "城中集会"],
+      "experienceTags": ["香火鼎盛", "庙会拥挤"]
+    },
+    {
+      "id": "p3",
+      "label": "虎丘",
+      "type": "place",
+      "description": "中秋赏月与游赏活动的重要地点。"
+    },
+    {
+      "id": "p4",
+      "label": "石湖",
+      "type": "place",
+      "description": "端午竞渡与中秋游赏常见地点。"
+    },
+    {
+      "id": "p5",
+      "label": "观前街",
+      "type": "place",
+      "description": "元宵灯市与游赏聚集处之一。"
+    },
+    {
+      "id": "p6",
+      "label": "山塘街",
+      "type": "place",
+      "description": "元宵灯市与游赏聚集处之一。"
+    },
+    {
+      "id": "p7",
+      "label": "古城桥梁",
+      "type": "place",
+      "description": "元宵「走三桥」所经之桥。"
+    },
+    {
+      "id": "p8",
+      "label": "上方山",
+      "type": "place",
+      "description": "重阳登高等活动常见去处。"
+    },
+    {
+      "id": "p9",
+      "label": "葑门外荷花荡",
+      "type": "place",
+      "description": "六月观荷、荷花生日游赏处。"
+    },
+    {
+      "id": "p10",
+      "label": "郊外墓地",
+      "type": "place",
+      "description": "清明祭扫上坟之处。"
+    },
+    {
+      "id": "a1",
+      "label": "春牛",
+      "type": "artifact",
+      "description": "迎春仪式中的象征性物件。"
+    },
+    {
+      "id": "a2",
+      "label": "花灯",
+      "type": "artifact",
+      "description": "元宵夜游与灯市核心物件。"
+    },
+    {
+      "id": "a3",
+      "label": "龙舟",
+      "type": "artifact",
+      "description": "端午竞渡的核心器具。",
+      "conceptTags": ["竞勇尚武", "端午象征"],
+      "experienceTags": ["桨声齐发", "速度张力"]
+    },
+    {
+      "id": "a4",
+      "label": "月饼",
+      "type": "artifact",
+      "description": "中秋赏月时常见节令食品。"
+    },
+    {
+      "id": "a5",
+      "label": "青团",
+      "type": "artifact",
+      "description": "清明前后常见节令食品。"
+    },
+    {
+      "id": "a6",
+      "label": "艾草",
+      "type": "artifact",
+      "description": "端午悬艾、避邪之物。"
+    },
+    {
+      "id": "a7",
+      "label": "茱萸",
+      "type": "artifact",
+      "description": "重阳佩茱萸之俗。"
+    },
+    {
+      "id": "a8",
+      "label": "重阳糕",
+      "type": "artifact",
+      "description": "重阳节食俗。"
+    },
+    {
+      "id": "a9",
+      "label": "腊八粥",
+      "type": "artifact",
+      "description": "腊月初八所食粥品。"
+    },
+    {
+      "id": "s1",
+      "label": "《清嘉录》·行春",
+      "type": "source",
+      "description": "记录立春迎春与摸春牛风俗。",
+      "meta": {
+        "sectionId": "qjl-xing-chun",
+        "quote": "立春前一日，官府迎春，民间相率观之。"
+      }
+    },
+    {
+      "id": "s2",
+      "label": "《清嘉录》·轧神仙",
+      "type": "source",
+      "description": "记录四月十四日轧神仙盛况。",
+      "meta": {
+        "sectionId": "qjl-zha-shen-xian",
+        "quote": "四月十四日，倾城往观，谓之轧神仙。"
+      }
+    },
+    {
+      "id": "s3",
+      "label": "《清嘉录》·端午",
+      "type": "source",
+      "description": "记录端午竞渡与避邪相关习俗。",
+      "meta": {
+        "sectionId": "qjl-duan-wu",
+        "quote": "五月五日，竞渡于湖港，家家悬艾。"
+      }
+    },
+    {
+      "id": "s4",
+      "label": "《清嘉录》·中秋",
+      "type": "source",
+      "description": "记录中秋赏月与团圆饮食习俗。",
+      "meta": {
+        "sectionId": "qjl-zhong-qiu",
+        "quote": "中秋夜，士女并出，登临赏月。"
+      }
+    },
+    {
+      "id": "s5",
+      "label": "《清嘉录》·元宵",
+      "type": "source",
+      "description": "记录正月十五灯市与夜游。",
+      "meta": {
+        "sectionId": "qjl-yuan-xiao",
+        "quote": "正月十五夜，张灯为市，士女游观。"
+      }
+    },
+    {
+      "id": "s6",
+      "label": "《清嘉录》·清明",
+      "type": "source",
+      "description": "记录清明祭扫与插柳等俗。",
+      "meta": {
+        "sectionId": "qjl-qing-ming",
+        "quote": "清明日，士庶家皆上冢，插柳于门。"
+      }
+    },
+    {
+      "id": "s7",
+      "label": "《清嘉录》·百花生日",
+      "type": "source",
+      "description": "记录花朝与赏红之俗。",
+      "meta": {
+        "sectionId": "qjl-bai-hua-sheng-ri",
+        "quote": "二月十二日为百花生日，闺中女郎剪五色彩缯粘花枝上，谓之赏红。"
+      }
+    },
+    {
+      "id": "s8",
+      "label": "《清嘉录》·走三桥",
+      "type": "source",
+      "description": "记录元夕妇女走桥却病之俗。",
+      "meta": {
+        "sectionId": "qjl-zou-san-qiao",
+        "quote": "元夕，妇女相率宵行，以却疾病，曰走三桥。"
+      }
+    },
+    {
+      "id": "s9",
+      "label": "《清嘉录》·荷花荡",
+      "type": "source",
+      "description": "记录六月廿四观荷之盛。",
+      "meta": {
+        "sectionId": "qjl-he-hua-dang",
+        "quote": "六月二十四日，画船箫鼓，竞集葑门外荷花荡。"
+      }
+    },
+    {
+      "id": "s10",
+      "label": "《清嘉录》·七夕",
+      "type": "source",
+      "description": "记录乞巧与陈瓜果之俗。",
+      "meta": {
+        "sectionId": "qjl-qi-xi",
+        "quote": "七月初七，妇女陈瓜果于庭，穿针乞巧。"
+      }
+    },
+    {
+      "id": "s11",
+      "label": "《清嘉录》·重阳",
+      "type": "source",
+      "description": "记录登高、佩萸、食糕之俗。",
+      "meta": {
+        "sectionId": "qjl-chong-yang",
+        "quote": "九日为重阳节，登高饮菊花酒，食重阳糕。"
+      }
+    },
+    {
+      "id": "s12",
+      "label": "《清嘉录》·冬至",
+      "type": "source",
+      "description": "记录冬至夜家宴与「冬至大如年」之谚。",
+      "meta": {
+        "sectionId": "qjl-dong-zhi",
+        "quote": "冬至夜，人家各置酒宴，谚云冬至大如年。"
+      }
+    },
+    {
+      "id": "s13",
+      "label": "《清嘉录》·腊八",
+      "type": "source",
+      "description": "记录腊八粥与馈遗之俗。",
+      "meta": {
+        "sectionId": "qjl-la-ba",
+        "quote": "腊月初八，僧尼以杂果煮粥，名曰腊八粥。"
+      }
+    },
+    {
+      "id": "s14",
+      "label": "《清嘉录》·除夕",
+      "type": "source",
+      "description": "记录辞岁、守岁与祀先。",
+      "meta": {
+        "sectionId": "qjl-chu-xi",
+        "quote": "除夕，家家祀先，长幼聚饮，谓之守岁。"
+      }
+    },
+    {
+      "id": "k1",
+      "label": "祈岁丰登",
+      "type": "concept",
+      "description": "围绕岁首与春令展开的丰年祈愿。"
+    },
+    {
+      "id": "k2",
+      "label": "辟邪禳灾",
+      "type": "concept",
+      "description": "通过节令仪式实现避疫、驱邪与安康。"
+    },
+    {
+      "id": "k3",
+      "label": "团圆共享",
+      "type": "concept",
+      "description": "以节庆饮食和夜游社交强化共同体情感。"
+    },
+    {
+      "id": "k4",
+      "label": "礼俗规范",
+      "type": "concept",
+      "description": "通过节序与民俗行为维持社会秩序。"
+    },
+    {
+      "id": "e1",
+      "label": "灯火通明",
+      "type": "experience",
+      "description": "元夕夜游中的明亮视觉体验。"
+    },
+    {
+      "id": "e2",
+      "label": "鼓声竞渡",
+      "type": "experience",
+      "description": "龙舟竞渡时高强度节奏听觉体验。"
+    },
+    {
+      "id": "e3",
+      "label": "草药清香",
+      "type": "experience",
+      "description": "端午悬艾与草本气味构成的嗅觉记忆。"
+    },
+    {
+      "id": "e4",
+      "label": "清辉夜色",
+      "type": "experience",
+      "description": "中秋赏月形成的清朗夜景体验。"
+    }
+  ],
+  "relations": [
+    {
+      "source": "m1",
+      "target": "c1",
+      "relationType": "occurs_in"
+    },
+    {
+      "source": "m1",
+      "target": "c2",
+      "relationType": "occurs_in"
+    },
+    {
+      "source": "m2",
+      "target": "c4",
+      "relationType": "occurs_in"
+    },
+    {
+      "source": "m3",
+      "target": "c5",
+      "relationType": "occurs_in"
+    },
+    {
+      "source": "m4",
+      "target": "c7",
+      "relationType": "occurs_in"
+    },
+    {
+      "source": "m5",
+      "target": "c8",
+      "relationType": "occurs_in"
+    },
+    {
+      "source": "m6",
+      "target": "c9",
+      "relationType": "occurs_in"
+    },
+    {
+      "source": "m7",
+      "target": "c10",
+      "relationType": "occurs_in"
+    },
+    {
+      "source": "m8",
+      "target": "c11",
+      "relationType": "occurs_in"
+    },
+    {
+      "source": "m9",
+      "target": "c12",
+      "relationType": "occurs_in"
+    },
+    {
+      "source": "m11",
+      "target": "c13",
+      "relationType": "occurs_in"
+    },
+    {
+      "source": "m12",
+      "target": "c14",
+      "relationType": "occurs_in"
+    },
+    {
+      "source": "m12",
+      "target": "c15",
+      "relationType": "occurs_in"
+    },
+    {
+      "source": "c1",
+      "target": "c3",
+      "relationType": "related_to"
+    },
+    {
+      "source": "c1",
+      "target": "r1",
+      "relationType": "performed_by"
+    },
+    {
+      "source": "c1",
+      "target": "r5",
+      "relationType": "performed_by"
+    },
+    {
+      "source": "c2",
+      "target": "c6",
+      "relationType": "related_to"
+    },
+    {
+      "source": "c2",
+      "target": "r2",
+      "relationType": "performed_by"
+    },
+    {
+      "source": "c2",
+      "target": "r3",
+      "relationType": "performed_by"
+    },
+    {
+      "source": "c4",
+      "target": "r4",
+      "relationType": "performed_by"
+    },
+    {
+      "source": "c7",
+      "target": "r3",
+      "relationType": "performed_by"
+    },
+    {
+      "source": "c7",
+      "target": "r8",
+      "relationType": "performed_by"
+    },
+    {
+      "source": "c8",
+      "target": "r7",
+      "relationType": "performed_by"
+    },
+    {
+      "source": "c8",
+      "target": "r3",
+      "relationType": "performed_by"
+    },
+    {
+      "source": "c9",
+      "target": "r3",
+      "relationType": "performed_by"
+    },
+    {
+      "source": "c10",
+      "target": "r4",
+      "relationType": "performed_by"
+    },
+    {
+      "source": "c13",
+      "target": "r3",
+      "relationType": "performed_by"
+    },
+    {
+      "source": "c15",
+      "target": "r3",
+      "relationType": "performed_by"
+    },
+    {
+      "source": "m4",
+      "target": "r6",
+      "relationType": "related_to"
+    },
+    {
+      "source": "c1",
+      "target": "p1",
+      "relationType": "occurs_at"
+    },
+    {
+      "source": "c7",
+      "target": "p2",
+      "relationType": "occurs_at"
+    },
+    {
+      "source": "c8",
+      "target": "p4",
+      "relationType": "occurs_at"
+    },
+    {
+      "source": "c11",
+      "target": "p3",
+      "relationType": "occurs_at"
+    },
+    {
+      "source": "c11",
+      "target": "p4",
+      "relationType": "occurs_at"
+    },
+    {
+      "source": "c1",
+      "target": "a1",
+      "relationType": "uses"
+    },
+    {
+      "source": "c2",
+      "target": "a2",
+      "relationType": "uses"
+    },
+    {
+      "source": "c8",
+      "target": "a3",
+      "relationType": "uses"
+    },
+    {
+      "source": "c11",
+      "target": "a4",
+      "relationType": "uses"
+    },
+    {
+      "source": "c1",
+      "target": "s1",
+      "relationType": "documented_in"
+    },
+    {
+      "source": "c7",
+      "target": "s2",
+      "relationType": "documented_in"
+    },
+    {
+      "source": "c8",
+      "target": "s3",
+      "relationType": "documented_in"
+    },
+    {
+      "source": "c11",
+      "target": "s4",
+      "relationType": "documented_in"
+    },
+    {
+      "source": "c2",
+      "target": "s5",
+      "relationType": "documented_in"
+    },
+    {
+      "source": "c3",
+      "target": "s1",
+      "relationType": "documented_in"
+    },
+    {
+      "source": "c4",
+      "target": "s7",
+      "relationType": "documented_in"
+    },
+    {
+      "source": "c5",
+      "target": "s6",
+      "relationType": "documented_in"
+    },
+    {
+      "source": "c6",
+      "target": "s8",
+      "relationType": "documented_in"
+    },
+    {
+      "source": "c9",
+      "target": "s9",
+      "relationType": "documented_in"
+    },
+    {
+      "source": "c10",
+      "target": "s10",
+      "relationType": "documented_in"
+    },
+    {
+      "source": "c12",
+      "target": "s11",
+      "relationType": "documented_in"
+    },
+    {
+      "source": "c13",
+      "target": "s12",
+      "relationType": "documented_in"
+    },
+    {
+      "source": "c14",
+      "target": "s13",
+      "relationType": "documented_in"
+    },
+    {
+      "source": "c15",
+      "target": "s14",
+      "relationType": "documented_in"
+    },
+    {
+      "source": "c2",
+      "target": "p5",
+      "relationType": "occurs_at"
+    },
+    {
+      "source": "c2",
+      "target": "p6",
+      "relationType": "occurs_at"
+    },
+    {
+      "source": "c6",
+      "target": "p7",
+      "relationType": "occurs_at"
+    },
+    {
+      "source": "c12",
+      "target": "p8",
+      "relationType": "occurs_at"
+    },
+    {
+      "source": "c9",
+      "target": "p9",
+      "relationType": "occurs_at"
+    },
+    {
+      "source": "c5",
+      "target": "p10",
+      "relationType": "occurs_at"
+    },
+    {
+      "source": "c5",
+      "target": "a5",
+      "relationType": "uses"
+    },
+    {
+      "source": "c8",
+      "target": "a6",
+      "relationType": "uses"
+    },
+    {
+      "source": "c12",
+      "target": "a7",
+      "relationType": "uses"
+    },
+    {
+      "source": "c12",
+      "target": "a8",
+      "relationType": "uses"
+    },
+    {
+      "source": "c14",
+      "target": "a9",
+      "relationType": "uses"
+    },
+    {
+      "source": "c1",
+      "target": "k1",
+      "relationType": "symbolizes"
+    },
+    {
+      "source": "c8",
+      "target": "k2",
+      "relationType": "symbolizes"
+    },
+    {
+      "source": "c11",
+      "target": "k3",
+      "relationType": "symbolizes"
+    },
+    {
+      "source": "k4",
+      "target": "c5",
+      "relationType": "regulates"
+    },
+    {
+      "source": "k4",
+      "target": "c15",
+      "relationType": "regulates"
+    },
+    {
+      "source": "c2",
+      "target": "e1",
+      "relationType": "evokes"
+    },
+    {
+      "source": "c8",
+      "target": "e2",
+      "relationType": "evokes"
+    },
+    {
+      "source": "c8",
+      "target": "e3",
+      "relationType": "evokes"
+    },
+    {
+      "source": "c11",
+      "target": "e4",
+      "relationType": "evokes"
+    },
+    {
+      "source": "k2",
+      "target": "e3",
+      "relationType": "associated_with"
+    },
+    {
+      "source": "k3",
+      "target": "e4",
+      "relationType": "associated_with"
+    }
+  ]
+}

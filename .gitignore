@@ -7,4 +7,4 @@ coverage/
 .env*
 !.env.example
 !.env.docker.prod.example
-data/
+/data/
