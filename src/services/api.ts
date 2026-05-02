@@ -446,13 +446,52 @@ export async function listQingJiaLuSections(month: string): Promise<{ month: str
   }
 }
 
-/** 按关键词反查可能月份（用于时令左栏搜索） */
-export async function searchQingJiaLuMonths(query: string): Promise<{ query: string; months: { month: string; count: number }[] } | null> {
+export type QjlSearchMonthHit = { id: string; month: string; title: string; snippet: string };
+
+/** 按关键词反查月份 + 原文命中小节（时令搜索） */
+export async function searchQingJiaLuMonths(query: string): Promise<{
+  query: string;
+  months: { month: string; count: number }[];
+  hits: QjlSearchMonthHit[];
+  totalMatches: number;
+} | null> {
   try {
     const q = encodeURIComponent(query.trim());
     return await request(`/api/qjl/search-months?q=${q}`);
   } catch {
     return null;
+  }
+}
+
+const PICTURE_BOOK_GROUND_FAIL_MSG =
+  '未在《清嘉录》原文中找到与这句描述相关的民俗内容。请围绕苏州传统节令、庙会、饮食、游艺等改写，或先用更具体的习俗名（如「轧神仙」「荷花生日」）再试。';
+
+/**
+ * 绘本主题是否在《清嘉录》原文中有依据（先调 ground-topic，失败时回退 search-months；均不可用时不拦截以免误伤离线环境）。
+ */
+export async function verifyPictureBookTopicGrounded(
+  topic: string,
+): Promise<{ grounded: true } | { grounded: false; message: string }> {
+  const t = topic.trim();
+  if (!t) return { grounded: false, message: '请用一句话描述你想看的民俗' };
+  try {
+    const q = encodeURIComponent(t);
+    const data = await request<{ grounded?: boolean; message?: string }>(`/api/qjl/ground-topic?q=${q}`);
+    if (data?.grounded === true) return { grounded: true };
+    if (data?.grounded === false) {
+      const msg = typeof data.message === 'string' && data.message.trim() ? data.message.trim() : PICTURE_BOOK_GROUND_FAIL_MSG;
+      return { grounded: false, message: msg };
+    }
+    return { grounded: true };
+  } catch {
+    try {
+      const fallback = await searchQingJiaLuMonths(t);
+      if (fallback && fallback.totalMatches > 0) return { grounded: true };
+      if (fallback && fallback.totalMatches === 0) return { grounded: false, message: PICTURE_BOOK_GROUND_FAIL_MSG };
+    } catch {
+      /* ignore */
+    }
+    return { grounded: true };
   }
 }
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   BookOpen,
@@ -7,7 +7,6 @@ import {
   Download,
   ChevronLeft,
   ChevronRight,
-  Library,
   Sparkles,
   X,
   Volume2,
@@ -26,21 +25,18 @@ import {
   savePictureBook,
   getPictureBookTts,
   exportPictureBookMp4 as apiExportMp4,
-  getStructuredMonthData,
   deletePictureBook,
   regeneratePictureBookPageImage,
   updatePictureBookPages,
+  verifyPictureBookTopicGrounded,
   type PictureBook,
   type PictureBookPage,
-  type MonthData,
 } from '../services/api';
-import { MONTHS, INITIAL_HIGHLIGHTS } from '../constants';
+import { useMediaQuery } from '../hooks/useMediaQuery';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
-
-const SUGGESTED_TOPICS = ['行春与摸春牛', '闹元宵', '轧神仙', '端午竞渡', '荷花生日', '中秋赏月'];
 
 /** 翻页动画时长（毫秒） */
 const FLIP_DURATION_MS = 800;
@@ -48,26 +44,14 @@ const FLIP_DURATION_MS = 800;
 const FLIP_READ_BUFFER_MS = 400;
 const FLIP_SOUND_URL = 'https://assets.mixkit.co/active_storage/sfx/2047/2047-preview.mp3';
 
-/** 将月份民俗数据格式化为给大模型的参考文案 */
-function formatFolkloreContext(data: MonthData): string {
-  const lines: string[] = [`【${data.month}】${data.summary}`];
-  data.customs?.forEach((c) => {
-    lines.push(`习俗：${c.name} — ${c.description}`);
-  });
-  return lines.join('\n');
-}
-
 export interface PictureBookViewProps {
-  /** 从时令页「一键带入」的参考月份 */
-  initialReferenceMonth?: string;
   /** 从习俗卡片「生成绘本」带入的主题（一句话） */
   initialTopic?: string;
 }
 
 export default function PictureBookView(props?: PictureBookViewProps) {
-  const { initialReferenceMonth, initialTopic } = props ?? {};
+  const { initialTopic } = props ?? {};
   const [topic, setTopic] = useState('');
-  const [referenceMonth, setReferenceMonth] = useState<string>('');
   const [generating, setGenerating] = useState(false);
   const [status, setStatus] = useState('');
   const [generated, setGenerated] = useState<PictureBook | null>(null);
@@ -82,6 +66,8 @@ export default function PictureBookView(props?: PictureBookViewProps) {
   /** 当前绘本每页的 TTS 音频 data URL，按页索引缓存 */
   const [pageAudioUrls, setPageAudioUrls] = useState<string[]>([]);
   const [showMyBooks, setShowMyBooks] = useState(false);
+  /** 小屏：「我的绘本」改为全屏底部抽屉，避免挤压主内容 */
+  const bookshelfAsOverlay = useMediaQuery('(max-width: 767px)');
   const [isAutoReading, setIsAutoReading] = useState(false);
   const [exportingMp4, setExportingMp4] = useState(false);
   /** 正在重新生成插图的页索引，null 表示空闲 */
@@ -118,13 +104,6 @@ export default function PictureBookView(props?: PictureBookViewProps) {
     loadList();
   }, []);
 
-  // 时令页传入的月份：同步到「参考民俗」下拉框
-  useEffect(() => {
-    if (initialReferenceMonth && MONTHS.includes(initialReferenceMonth as (typeof MONTHS)[number])) {
-      setReferenceMonth(initialReferenceMonth);
-    }
-  }, [initialReferenceMonth]);
-
   // 习俗卡片传入的主题：同步到输入框
   useEffect(() => {
     if (initialTopic != null && String(initialTopic).trim()) {
@@ -149,6 +128,13 @@ export default function PictureBookView(props?: PictureBookViewProps) {
       return;
     }
     setError(null);
+    setStatus('正在对照《清嘉录》原文…');
+    const ground = await verifyPictureBookTopicGrounded(t);
+    if (ground.grounded === false) {
+      setStatus('');
+      setError(ground.message);
+      return;
+    }
     setGenerating(true);
     setStatus('正在构思绘本故事…');
     if (statusTimerRef.current != null) {
@@ -160,16 +146,7 @@ export default function PictureBookView(props?: PictureBookViewProps) {
     }, 2000);
     setGenerated(null);
     try {
-      let folkloreContext: string | undefined;
-      if (referenceMonth) {
-        // 与时令页一致：优先按原文抽取的 MonthData，失败再用静态兜底
-        let data: MonthData | null = await getStructuredMonthData(referenceMonth);
-        if (!data && INITIAL_HIGHLIGHTS[referenceMonth as keyof typeof INITIAL_HIGHLIGHTS]) {
-          data = INITIAL_HIGHLIGHTS[referenceMonth as keyof typeof INITIAL_HIGHLIGHTS] as MonthData;
-        }
-        if (data) folkloreContext = formatFolkloreContext(data);
-      }
-      const book = await apiGenerate(t, true, folkloreContext);
+      const book = await apiGenerate(t, true);
       setGenerated(book);
     } catch (e) {
       setError(e instanceof Error ? e.message : '生成失败，请稍后再试');
@@ -438,169 +415,204 @@ export default function PictureBookView(props?: PictureBookViewProps) {
     };
   }, [currentBook?.pages, generating, currentBook?.topic]);
 
+  useEffect(() => {
+    if (!showMyBooks || !bookshelfAsOverlay) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [showMyBooks, bookshelfAsOverlay]);
+
+  const bookshelfList = (
+    <>
+      <div className="flex items-center justify-between mb-3 shrink-0 border-b border-ink/10 pb-3">
+        <h3 className="serif text-lg font-bold text-olive">我的绘本</h3>
+        <button
+          type="button"
+          onClick={() => setShowMyBooks(false)}
+          className="p-2.5 rounded-full hover:bg-ink/5 text-ink/60 touch-manipulation min-h-[44px] min-w-[44px] flex items-center justify-center"
+          aria-label="关闭"
+        >
+          {bookshelfAsOverlay ? <X size={22} /> : <ChevronLeft size={20} />}
+        </button>
+      </div>
+      {savedList.length === 0 ? (
+        <div className="flex-1 flex flex-col items-center justify-center text-center px-4 py-8 min-h-[12rem]">
+          <p className="text-ink/50 text-sm">绘本空空如也，快去创作吧</p>
+        </div>
+      ) : (
+        <ul className="space-y-1 overflow-y-auto flex-1 min-h-0 overscroll-contain -mx-1 px-1">
+          {savedList.map((item) => (
+            <li key={item.id}>
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => {
+                  setViewingId(item.id ?? null);
+                  if (bookshelfAsOverlay) setShowMyBooks(false);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setViewingId(item.id ?? null);
+                    if (bookshelfAsOverlay) setShowMyBooks(false);
+                  }
+                }}
+                className={cn(
+                  'w-full flex items-center justify-between gap-2 px-3 py-3 rounded-lg text-left transition-colors touch-manipulation min-h-[48px]',
+                  viewingId === item.id ? 'bg-olive/10 text-olive' : 'hover:bg-ink/5 active:bg-ink/10',
+                )}
+              >
+                <div className="min-w-0">
+                  <div className="font-medium truncate">{item.title}</div>
+                  <div className="text-xs opacity-60 mt-0.5">{item.createdAt?.slice(0, 10)}</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    if (!item.id) return;
+                    if (!window.confirm('确定要删除这本绘本吗？')) return;
+                    try {
+                      await deletePictureBook(item.id);
+                      setSavedList((prev) => prev.filter((b) => b.id !== item.id));
+                      if (viewingId === item.id) {
+                        setViewingId(null);
+                        setViewingBook(null);
+                        setPageIndex(0);
+                      }
+                    } catch (err) {
+                      alert(err instanceof Error ? err.message : '删除失败');
+                    }
+                  }}
+                  className="p-2 rounded-full hover:bg-ink/10 text-ink/40 hover:text-vermilion/80 touch-manipulation shrink-0"
+                  aria-label="删除绘本"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  );
+
   return (
     <div className="flex flex-col sm:flex-row gap-6 min-h-0">
       <audio ref={audioRef} className="hidden" />
-      {/* 左侧：我的绘本（参考「我的画廊」） */}
+      {/* 左侧 / 小屏全屏：我的绘本 */}
       <AnimatePresence>
-        {showMyBooks && (
+        {showMyBooks && bookshelfAsOverlay && (
+          <motion.div
+            key="bookshelf-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-[60] flex flex-col justify-end"
+            role="presentation"
+          >
+            <button
+              type="button"
+              className="absolute inset-0 bg-ink/45 backdrop-blur-[2px]"
+              aria-label="关闭我的绘本"
+              onClick={() => setShowMyBooks(false)}
+            />
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 28, stiffness: 360 }}
+              className="relative z-[1] mx-auto w-full max-w-lg max-h-[min(88dvh,800px)] flex flex-col rounded-t-[24px] border border-ink/10 bg-paper px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-ink/15 shrink-0" aria-hidden />
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{bookshelfList}</div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {showMyBooks && !bookshelfAsOverlay && (
           <motion.aside
+            key="bookshelf-inline"
             initial={{ width: 0, opacity: 0 }}
-            animate={{ width: 280, opacity: 1 }}
+            animate={{ width: 'min(280px, calc(100vw - 1.5rem))', opacity: 1 }}
             exit={{ width: 0, opacity: 0 }}
             transition={{ type: 'tween', duration: 0.2 }}
-            className="shrink-0 overflow-hidden border-r border-ink/10 bg-white/50 rounded-2xl card-shadow"
+            className="shrink-0 overflow-hidden border-r border-ink/10 bg-white/50 rounded-2xl card-shadow max-w-[min(280px,calc(100vw-1.5rem))]"
           >
-            <div className="w-[280px] h-full min-h-[400px] flex flex-col p-4">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="serif text-lg font-bold text-olive">我的绘本</h3>
-                <button
-                  type="button"
-                  onClick={() => setShowMyBooks(false)}
-                  className="p-2 rounded-full hover:bg-ink/5 text-ink/60"
-                  aria-label="收起"
-                >
-                  <ChevronLeft size={20} />
-                </button>
-              </div>
-              {savedList.length === 0 ? (
-                <div className="flex-1 flex flex-col items-center justify-center text-center px-4 py-8">
-                  <p className="text-ink/50 text-sm">绘本空空如也，快去创作吧</p>
-                </div>
-              ) : (
-                <ul className="space-y-1 overflow-y-auto flex-1">
-                  {savedList.map((item) => (
-                    <li key={item.id}>
-                      <div
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => {
-                          setViewingId(item.id ?? null);
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            setViewingId(item.id ?? null);
-                          }
-                        }}
-                        className={cn(
-                          "w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-left transition-colors",
-                          viewingId === item.id
-                            ? "bg-olive/10 text-olive"
-                            : "hover:bg-ink/5"
-                        )}
-                      >
-                        <div className="min-w-0">
-                          <div className="font-medium truncate">{item.title}</div>
-                          <div className="text-xs opacity-60 mt-0.5">{item.createdAt?.slice(0, 10)}</div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            if (!item.id) return;
-                            if (!window.confirm('确定要删除这本绘本吗？')) return;
-                            try {
-                              await deletePictureBook(item.id);
-                              setSavedList((prev) => prev.filter((b) => b.id !== item.id));
-                              if (viewingId === item.id) {
-                                setViewingId(null);
-                                setViewingBook(null);
-                                setPageIndex(0);
-                              }
-                            } catch (e) {
-                              alert(e instanceof Error ? e.message : '删除失败');
-                            }
-                          }}
-                          className="p-1.5 rounded-full hover:bg-ink/10 text-ink/40 hover:text-vermilion/80"
-                          aria-label="删除绘本"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
+            <div className="flex h-full min-h-[min(400px,55dvh)] w-full min-w-0 flex-col p-4">{bookshelfList}</div>
           </motion.aside>
         )}
       </AnimatePresence>
 
       <div className="flex-1 min-w-0 space-y-6">
         {/* 右上：我的绘本 入口 + 标题区 */}
-        <div className="flex items-start justify-between gap-4">
-          <button
-            type="button"
-            onClick={() => setShowMyBooks((v) => !v)}
-            className="flex items-center gap-2 text-olive font-medium hover:opacity-80 shrink-0"
-          >
-            <RotateCcw size={18} />
-            我的绘本 ({savedList.length})
-          </button>
-          <div className="text-center flex-1 min-w-0">
-            <h2 className="serif text-4xl md:text-5xl font-bold tracking-tight text-olive mb-3 flex items-center justify-center gap-3">
-              <BookOpen size={32} />
-              苏州民俗绘本
+        <div className="grid w-full grid-cols-[1fr_auto_1fr] items-start gap-2 sm:gap-4">
+          <div className="flex justify-start min-w-0">
+            <button
+              type="button"
+              onClick={() => setShowMyBooks((v) => !v)}
+              className="flex items-center gap-1.5 sm:gap-2 text-olive text-sm sm:text-base font-medium hover:opacity-80 touch-manipulation min-h-[44px] px-1 rounded-lg"
+            >
+              <RotateCcw className="shrink-0" size={18} />
+              <span className="truncate">
+                我的绘本 (<span className="tabular-nums">{savedList.length}</span>)
+              </span>
+            </button>
+          </div>
+          <div className="text-center min-w-0 max-w-[min(100vw-8rem,42rem)] justify-self-center">
+            <h2 className="serif text-2xl sm:text-4xl md:text-5xl font-bold tracking-tight text-olive mb-2 sm:mb-3 flex flex-wrap items-center justify-center gap-2 sm:gap-3">
+              <BookOpen className="shrink-0" size={28} />
+              <span>苏州民俗绘本</span>
             </h2>
-            <p className="serif text-lg text-ink/60 italic">
+            <p className="serif text-sm sm:text-lg text-ink/60 italic px-1">
               一句话，绘出姑苏繁华梦
             </p>
           </div>
-          <div className="w-[120px] shrink-0" />
+          <div className="min-w-0" aria-hidden="true" />
         </div>
 
-        {/* 生成区：参考 szmshb，卡片收窄、单行输入+内嵌按钮 */}
-        <div className="w-full max-w-2xl mx-auto bg-white p-6 rounded-[32px] card-shadow border border-ink/5">
-          <label htmlFor="topic-input" className="block text-sm font-semibold uppercase tracking-widest text-olive/80 mb-2 ml-1">
+        {/* 生成区 */}
+        <div className="mx-auto w-full max-w-2xl rounded-[24px] border border-ink/5 bg-white p-4 card-shadow sm:rounded-[32px] sm:p-6">
+          <label htmlFor="topic-input" className="mb-2 ml-0.5 block text-sm font-semibold uppercase tracking-widest text-olive/80">
             输入您的灵感
           </label>
-          <div className="relative">
-            <input
-              id="topic-input"
-              type="text"
-              value={topic}
-              onChange={(e) => setTopic(e.target.value)}
-              placeholder="例如：端午节伍子胥祭祀、七夕乞巧、冬至大如年..."
-              className="w-full bg-paper/50 border border-ink/10 rounded-2xl pl-4 pr-28 py-3 text-base placeholder:text-ink/30 focus:outline-none focus:ring-2 focus:ring-olive/20 transition-all"
-              onKeyDown={(e) => e.key === 'Enter' && handleGenerate()}
-            />
+          <div className="relative flex flex-col gap-3 sm:block">
+            <div className="rounded-2xl border border-ink/10 bg-paper/50 ring-1 ring-ink/5 focus-within:border-olive focus-within:ring-olive/20 sm:pr-[9.5rem]">
+              <textarea
+                id="topic-input"
+                value={topic}
+                onChange={(e) => setTopic(e.target.value)}
+                placeholder="一句话描述想看的民俗场景，如端午竞渡、轧神仙…"
+                rows={3}
+                enterKeyHint="go"
+                autoComplete="off"
+                spellCheck={false}
+                onKeyDown={(e) => {
+                  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                    e.preventDefault();
+                    if (!generating && topic.trim()) void handleGenerate();
+                  }
+                }}
+                className="max-h-[40dvh] min-h-[6.75rem] w-full resize-y rounded-2xl border-0 bg-transparent px-4 py-3.5 text-base leading-relaxed text-ink placeholder:text-ink/35 focus:outline-none touch-manipulation sm:min-h-[3.5rem] sm:max-h-52 sm:resize-none sm:py-3"
+              />
+            </div>
             <button
-              onClick={handleGenerate}
+              type="button"
+              onClick={() => void handleGenerate()}
               disabled={generating || !topic.trim()}
               className={cn(
-                "absolute right-2 top-2 bottom-2 bg-olive text-white px-5 rounded-xl font-medium flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all",
-                generating ? "bg-ink/20 text-ink/60" : "hover:bg-olive/90"
+                'inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-olive px-5 font-medium text-white touch-manipulation disabled:cursor-not-allowed disabled:opacity-50 sm:absolute sm:right-2 sm:top-1/2 sm:mt-0 sm:min-h-[2.75rem] sm:w-auto sm:-translate-y-1/2 sm:px-4',
+                generating ? 'bg-ink/20 text-ink/60' : 'hover:bg-olive/90',
               )}
             >
-              {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles size={18} />}
-              <span>生成</span>
+              {generating ? <Loader2 className="size-4 animate-spin" /> : <Sparkles size={18} />}
+              <span>生成绘本</span>
             </button>
-          </div>
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <span className="text-xs opacity-60">参考民俗（可选）：</span>
-            <select
-              value={referenceMonth}
-              onChange={(e) => setReferenceMonth(e.target.value)}
-              className="text-sm px-3 py-1.5 rounded-xl border border-ink/10 bg-white"
-            >
-              <option value="">不参考</option>
-              {MONTHS.map((m) => (
-                <option key={m} value={m}>{m}</option>
-              ))}
-            </select>
-          </div>
-          <div className="flex flex-wrap gap-1.5 mt-3">
-            {SUGGESTED_TOPICS.map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => setTopic(t)}
-                className="text-xs px-3 py-1.5 rounded-full border border-ink/10 hover:border-olive hover:text-olive transition-colors"
-              >
-                {t}
-              </button>
-            ))}
           </div>
           {error && (
             <p className="mt-3 text-sm text-vermilion">{error}</p>
@@ -652,14 +664,15 @@ export default function PictureBookView(props?: PictureBookViewProps) {
                 </div>
               )}
 
-              <div className="p-6 border-b border-ink/5 flex justify-between items-center">
-                <h3 className="serif text-2xl font-bold text-olive">{currentBook.title}</h3>
-                <div className="flex items-center gap-2">
+              <div className="p-4 sm:p-6 border-b border-ink/5 flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
+                <h3 className="serif text-xl sm:text-2xl font-bold text-olive min-w-0 break-words">{currentBook.title}</h3>
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
                   {currentBook && (
                     <button
+                      type="button"
                       onClick={handleExportMp4}
                       disabled={exportingMp4 || generating}
-                      className="flex items-center gap-2 px-5 py-2 rounded-full border border-ink/10 bg-white hover:bg-paper disabled:opacity-50"
+                      className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2 rounded-full border border-ink/10 bg-white hover:bg-paper disabled:opacity-50 text-xs sm:text-sm touch-manipulation min-h-[40px]"
                       title="导出为可发布的 MP4 视频"
                     >
                       {exportingMp4 ? <Loader2 className="animate-spin" size={16} /> : <Download size={16} />}
@@ -668,9 +681,10 @@ export default function PictureBookView(props?: PictureBookViewProps) {
                   )}
                   {generated && (
                     <button
+                      type="button"
                       onClick={handleSave}
                       disabled={saving}
-                      className="flex items-center gap-2 px-5 py-2 rounded-full bg-olive text-white hover:opacity-90 disabled:opacity-50"
+                      className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2 rounded-full bg-olive text-white hover:opacity-90 disabled:opacity-50 text-xs sm:text-sm touch-manipulation min-h-[40px]"
                     >
                       {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
                       保存
@@ -678,8 +692,10 @@ export default function PictureBookView(props?: PictureBookViewProps) {
                   )}
                   {viewingId != null && (
                     <button
+                      type="button"
                       onClick={() => { setViewingId(null); setViewingBook(null); }}
-                      className="p-2 rounded-full hover:bg-ink/5"
+                      className="p-2.5 rounded-full hover:bg-ink/5 touch-manipulation min-h-[40px] min-w-[40px] flex items-center justify-center"
+                      aria-label="关闭绘本"
                     >
                       <X size={20} />
                     </button>
@@ -689,7 +705,7 @@ export default function PictureBookView(props?: PictureBookViewProps) {
 
               {totalPages > 0 && (
                 <>
-                  <div className="min-h-[440px] flex items-center justify-center bg-paper/50 p-6 md:p-8">
+                  <div className="min-h-[min(440px,58dvh)] flex items-center justify-center bg-paper/50 p-4 sm:p-6 md:p-8">
                     <div className="max-w-4xl w-full mx-auto">
                       <AnimatePresence mode="wait" initial={false}>
                         <motion.div
@@ -805,11 +821,12 @@ export default function PictureBookView(props?: PictureBookViewProps) {
                     </div>
                   </div>
                   {/* 底部导航：上一页 / 页码与圆点 / 下一页（与 szmshb 一致，避免侧栏打开时按钮被挡或压住文字） */}
-                  <div className="bg-paper/50 border-t border-ink/5 py-4 px-4 flex items-center justify-between gap-4">
+                  <div className="bg-paper/50 border-t border-ink/5 py-3 px-3 sm:py-4 sm:px-4 flex items-center justify-between gap-2 sm:gap-4 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
                     <button
+                      type="button"
                       onClick={() => flipToPage(pageIndex, Math.max(0, pageIndex - 1), { userInitiated: true })}
                       disabled={pageIndex === 0}
-                      className="flex items-center gap-2 text-olive font-medium disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity"
+                      className="flex items-center gap-1 sm:gap-2 text-olive text-sm sm:text-base font-medium disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity touch-manipulation min-h-[44px] min-w-[44px] sm:min-w-0 px-1 rounded-lg"
                     >
                       <ChevronLeft size={20} />
                       <span>上一页</span>
@@ -831,9 +848,10 @@ export default function PictureBookView(props?: PictureBookViewProps) {
                       </div>
                     </div>
                     <button
+                      type="button"
                       onClick={() => flipToPage(pageIndex, Math.min(totalPages - 1, pageIndex + 1), { userInitiated: true })}
                       disabled={pageIndex >= totalPages - 1}
-                      className="flex items-center gap-2 text-olive font-medium disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity"
+                      className="flex items-center gap-1 sm:gap-2 text-olive text-sm sm:text-base font-medium disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity touch-manipulation min-h-[44px] min-w-[44px] sm:min-w-0 px-1 rounded-lg"
                     >
                       <span>下一页</span>
                       <ChevronRight size={20} />

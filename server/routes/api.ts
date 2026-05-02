@@ -1243,29 +1243,105 @@ router.get('/qjl/sections', (req, res) => {
   }
 });
 
-// GET /api/qjl/search-months?q=闹元宵 — 按关键词反查可能的月份（用于时令左栏搜索）
+/** 为搜索列表生成短引文（保留原文位置，便于用户辨认） */
+function qjlSearchSnippet(section: { title: string; content: string }, needleLower: string): string {
+  const full = `${section.title}\n${section.content}`;
+  const low = full.toLowerCase();
+  const idx = low.indexOf(needleLower);
+  if (idx < 0) {
+    const t = section.title.replace(/\s+/g, ' ').trim();
+    return t.length > 96 ? `${t.slice(0, 96)}…` : t;
+  }
+  const start = Math.max(0, idx - 32);
+  const end = Math.min(full.length, idx + needleLower.length + 80);
+  let s = full.slice(start, end).replace(/\s+/g, ' ');
+  if (start > 0) s = `…${s.trimStart()}`;
+  if (end < full.length) s = `${s.trimEnd()}…`;
+  return s.trim();
+}
+
+// GET /api/qjl/search-months?q=闹元宵 — 按关键词反查月份 + 命中小节列表（时令页展示）
 router.get('/qjl/search-months', (req, res) => {
   try {
     const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
     if (!q) {
-      return res.json({ query: '', months: [] as { month: string; count: number }[] });
+      return res.json({
+        query: '',
+        months: [] as { month: string; count: number }[],
+        hits: [] as { id: string; month: string; title: string; snippet: string }[],
+        totalMatches: 0,
+      });
     }
     const key = q.toLowerCase();
     const byMonth = new Map<string, number>();
+    const hits: { id: string; month: string; title: string; snippet: string }[] = [];
+    const maxHits = 60;
+    let totalMatches = 0;
+
     for (const s of getAllSections()) {
       const month = (s.month || '').trim();
       if (!month) continue;
       const haystack = `${s.title}\n${s.content}`.toLowerCase();
       if (!haystack.includes(key)) continue;
       byMonth.set(month, (byMonth.get(month) ?? 0) + 1);
+      totalMatches += 1;
+      if (hits.length < maxHits) {
+        hits.push({
+          id: s.id,
+          month,
+          title: s.title,
+          snippet: qjlSearchSnippet(s, key),
+        });
+      }
     }
     const months = Array.from(byMonth.entries())
       .map(([month, count]) => ({ month, count }))
       .sort((a, b) => b.count - a.count);
-    res.json({ query: q, months });
+    res.json({ query: q, months, hits, totalMatches });
   } catch (e) {
     console.error('QJL search months error:', e);
     res.status(500).json({ error: '搜索月份失败' });
+  }
+});
+
+// GET /api/qjl/ground-topic?q=… — 判断用户描述是否在《清嘉录》原文中有民俗依据（绘本生成前校验）
+router.get('/qjl/ground-topic', (req, res) => {
+  try {
+    const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+    if (!q) {
+      return res.status(400).json({ error: '请提供 query 参数 q' });
+    }
+    const soft = searchSectionsSoft(q, 8);
+    if (soft.length > 0) {
+      return res.json({
+        grounded: true,
+        mode: 'soft',
+        matchCount: soft.length,
+      });
+    }
+    const key = q.toLowerCase();
+    let literalHits = 0;
+    for (const s of getAllSections()) {
+      const hay = `${s.title}\n${s.content}`.toLowerCase();
+      if (hay.includes(key)) literalHits += 1;
+    }
+    if (literalHits > 0) {
+      return res.json({
+        grounded: true,
+        mode: 'literal',
+        matchCount: literalHits,
+      });
+    }
+    return res.json({
+      grounded: false,
+      mode: 'none',
+      matchCount: 0,
+      message:
+        '未在《清嘉录》原文中找到与这句描述相关的民俗内容。请围绕苏州传统节令、庙会、饮食、游艺等改写，或先用更具体的习俗名（如「轧神仙」「荷花生日」）再试。',
+    });
+  } catch (e) {
+    console.error('QJL ground-topic error:', e);
+    res.status(500).json({ error: '原文校验失败' });
   }
 });
 

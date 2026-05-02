@@ -2,11 +2,11 @@ import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Settings } from 'lucide-react';
 import { downloadGeoExport, type GeoPlace, type AuthUser, type GeoReviewRecord } from '../services/api';
+import { LLMConfigModal } from './LLMConfigView';
+import { UserLoginForm } from './UserLoginForm';
 
 /** 用户管理中可创建与调整的角色（不含 admin） */
 type ManagedUserRole = 'viewer' | 'editor';
-import { LLMConfigModal } from './LLMConfigView';
-import { UserLoginForm } from './UserLoginForm';
 
 type ReviewStatus = 'pending' | 'reviewed' | 'locked';
 const normalizePlaceKey = (v: string) => (v || '').replace(/\s+/g, '').toLowerCase();
@@ -87,7 +87,7 @@ export default function AdminApp(props: AdminAppProps) {
   }
 
   return (
-    <motion.div key="admin" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-4 min-h-[72vh]">
+    <motion.div key="admin" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-4 min-h-[min(72vh,100dvh)] pb-[env(safe-area-inset-bottom)]">
       <aside className="bg-white rounded-[24px] border border-ink/10 p-4 space-y-3">
         <div className="pb-3 border-b border-ink/10">
           <h2 className="serif text-2xl font-bold text-olive">地理治理后台</h2>

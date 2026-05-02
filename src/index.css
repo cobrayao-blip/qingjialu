@@ -11,8 +11,14 @@
   --color-vermilion: #b22222;
 }
 
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
   @apply bg-paper text-ink font-sans antialiased;
+  overflow-x: clip;
 }
 
 .serif {
@@ -44,4 +50,8 @@ body {
 }
 .markdown-body li {
   @apply mb-1;
+}
+
+.markdown-body pre {
+  @apply overflow-x-auto max-w-full;
 }

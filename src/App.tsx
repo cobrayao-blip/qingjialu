@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Book, MapPin, MessageSquare, BarChart3, ChevronRight, Sparkles, Loader2, Volume2, Square, BookOpen, X, Copy, RotateCcw, ThumbsUp, ThumbsDown, Share2, Plus, Trash2, Pencil } from 'lucide-react';
+import { Book, MapPin, MessageSquare, BarChart3, ChevronRight, Sparkles, Loader2, Volume2, Square, BookOpen, X, Copy, RotateCcw, ThumbsUp, ThumbsDown, Share2, Plus, Trash2, Pencil, Search } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -26,6 +26,7 @@ import {
   type GeoPlace,
   type GeoGlossaryEntry,
   type GeoChatContextPayload,
+  type QjlSearchMonthHit,
 } from './services/api';
 import { MONTHS, INITIAL_HIGHLIGHTS } from './constants';
 
@@ -35,6 +36,7 @@ import PictureBookView from './components/PictureBookView';
 import AdminApp from './components/AdminApp';
 import { UserLoginForm } from './components/UserLoginForm';
 import { useAdminController } from './hooks/useAdminController';
+import { useMediaQuery } from './hooks/useMediaQuery';
 import { authFetchHeaders } from './services/api';
 
 function cn(...inputs: ClassValue[]) {
@@ -199,6 +201,8 @@ export default function App() {
   const [qjlSectionList, setQjlSectionList] = useState<{ id: string; title: string }[]>([]);
   const [explorerSearchQuery, setExplorerSearchQuery] = useState('');
   const [explorerSearchMonthSet, setExplorerSearchMonthSet] = useState<Set<string> | null>(null);
+  const [explorerSearchHits, setExplorerSearchHits] = useState<QjlSearchMonthHit[]>([]);
+  const [explorerSearchTotalMatches, setExplorerSearchTotalMatches] = useState(0);
   const [explorerSearching, setExplorerSearching] = useState(false);
   const [qjlSectionMonth, setQjlSectionMonth] = useState<string | null>(null);
   const [qjlDrawerOpen, setQjlDrawerOpen] = useState(false);
@@ -214,7 +218,6 @@ export default function App() {
   const [qjlTranslationVisible, setQjlTranslationVisible] = useState(false);
   const [qjlTranslating, setQjlTranslating] = useState(false);
   const [qjlTranslationError, setQjlTranslationError] = useState<string | null>(null);
-  const [bookInitialMonth, setBookInitialMonth] = useState<string | undefined>(undefined);
   /** 从习俗卡片带入的绘本主题 */
   const [bookInitialTopic, setBookInitialTopic] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(false);
@@ -241,6 +244,11 @@ export default function App() {
   const [speakingMsgIndex, setSpeakingMsgIndex] = useState<number | null>(null);
   const [ttsAudio, setTtsAudio] = useState<HTMLAudioElement | null>(null);
   const [chatFeedback, setChatFeedback] = useState<Record<number, 'up' | 'down'>>({});
+  /** 小屏地理卡「原文依据」折叠，减轻拇指滑动距离 */
+  const geoViewportNarrow = useMediaQuery('(max-width: 767px)');
+  const [geoCiteExpanded, setGeoCiteExpanded] = useState<Record<string, boolean>>({});
+  /** 解析 Tab：虚拟键盘占用高度（visualViewport 与布局视口差值） */
+  const [chatComposerLift, setChatComposerLift] = useState(0);
 
   const admin = useAdminController({ isAdminRoute, selectedMonth });
   const siteReady =
@@ -636,6 +644,29 @@ export default function App() {
     };
   }, [ttsAudio]);
 
+  useEffect(() => {
+    if (activeTab !== 'geo') setGeoCiteExpanded({});
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab !== 'chat') {
+      setChatComposerLift(0);
+      return;
+    }
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const sync = () => {
+      setChatComposerLift(Math.max(0, window.innerHeight - vv.height - vv.offsetTop));
+    };
+    sync();
+    vv.addEventListener('resize', sync);
+    vv.addEventListener('scroll', sync);
+    return () => {
+      vv.removeEventListener('resize', sync);
+      vv.removeEventListener('scroll', sync);
+    };
+  }, [activeTab]);
+
   // 时令 Tab：所有月份统一先拉 API（有 sections 则 grounded），失败再用静态兜底
   useEffect(() => {
     if (!siteReady || activeTab !== 'explorer' || !selectedMonth) return;
@@ -790,6 +821,8 @@ export default function App() {
     const q = explorerSearchQuery.trim();
     if (!q) {
       setExplorerSearchMonthSet(null);
+      setExplorerSearchHits([]);
+      setExplorerSearchTotalMatches(0);
       setExplorerSearching(false);
       return;
     }
@@ -798,7 +831,23 @@ export default function App() {
       setExplorerSearching(true);
       const res = await searchQingJiaLuMonths(q);
       if (!cancelled) {
-        setExplorerSearchMonthSet(new Set((res?.months ?? []).map((m) => m.month)));
+        if (res) {
+          setExplorerSearchMonthSet(new Set((res.months ?? []).map((m) => m.month)));
+          const hits = Array.isArray(res.hits) ? res.hits : [];
+          setExplorerSearchHits(hits);
+          const fromMonths = (res.months ?? []).reduce((acc, m) => acc + (typeof m.count === 'number' ? m.count : 0), 0);
+          setExplorerSearchTotalMatches(
+            typeof res.totalMatches === 'number'
+              ? res.totalMatches
+              : hits.length > 0
+                ? Math.max(fromMonths, hits.length)
+                : fromMonths,
+          );
+        } else {
+          setExplorerSearchMonthSet(new Set());
+          setExplorerSearchHits([]);
+          setExplorerSearchTotalMatches(0);
+        }
         setExplorerSearching(false);
       }
     }, 250);
@@ -1073,15 +1122,15 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-paper text-ink">
+    <div className="min-h-[100dvh] min-h-screen flex flex-col bg-paper text-ink">
       {/* Header */}
-      <header className="border-b border-ink/10 py-6 px-4 sm:px-8 flex flex-col sm:flex-row justify-between items-center gap-4">
+      <header className="border-b border-ink/10 py-4 sm:py-6 px-4 sm:px-8 flex flex-col sm:flex-row justify-between items-center gap-4 pt-[max(1rem,env(safe-area-inset-top))]">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-olive rounded-full flex items-center justify-center text-white">
             <Book size={20} />
           </div>
           <div>
-            <h1 className="serif text-2xl font-bold tracking-tight text-olive">清嘉录 · 苏州民俗大观</h1>
+            <h1 className="serif text-xl sm:text-2xl font-bold tracking-tight text-olive text-center sm:text-left">清嘉录 · 苏州民俗大观</h1>
             <p className="text-xs uppercase tracking-widest opacity-60 font-medium">Folklore Encyclopedia of Qing Suzhou</p>
           </div>
         </div>
@@ -1133,7 +1182,7 @@ export default function App() {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 max-w-7xl mx-auto w-full p-4 sm:p-8 flex flex-col">
+      <main className="flex-1 min-h-0 max-w-7xl mx-auto w-full p-4 sm:p-8 flex flex-col">
         <AnimatePresence mode="wait">
           {!isAdminRoute && activeTab === 'explorer' && (
             <motion.div
@@ -1141,50 +1190,164 @@ export default function App() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="grid grid-cols-1 lg:grid-cols-12 gap-8"
+              className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:gap-8"
             >
-              {/* Month Selector */}
-              <div className="lg:col-span-3 self-start flex lg:flex-col gap-2 overflow-x-auto lg:overflow-y-auto pb-4 lg:pb-0 lg:sticky lg:top-24 lg:max-h-[calc(100vh-8rem)] lg:pr-1 scrollbar-hide">
-                <div className="w-full mb-1">
-                  <input
-                    type="text"
-                    value={explorerSearchQuery}
-                    onChange={(e) => setExplorerSearchQuery(e.target.value)}
-                    placeholder="搜索时令/习俗（如 元宵、春牛）"
-                    className="w-full px-4 py-2.5 rounded-2xl border border-ink/10 bg-white/70 text-sm focus:outline-none focus:border-olive"
-                  />
-                  <div className="mt-1 text-[11px] text-ink/50 min-h-[1rem]">
+              {/* Month Selector：小屏纵向——搜索全宽置顶，月份单独横向滚动 */}
+              <div className="flex w-full min-w-0 flex-col gap-3 self-start lg:col-span-3 lg:sticky lg:top-24 lg:max-h-[calc(100dvh-8rem)] lg:pr-1">
+                <div className="w-full shrink-0 space-y-1.5">
+                  <label htmlFor="explorer-search" className="sr-only">
+                    按习俗关键词搜索并反查月份
+                  </label>
+                  <form
+                    className="w-full"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                    }}
+                  >
+                    <div className="relative rounded-2xl border border-ink/15 bg-white shadow-sm ring-1 ring-ink/5">
+                      <Search className="pointer-events-none absolute left-3.5 top-1/2 size-[18px] -translate-y-1/2 text-ink/35" aria-hidden />
+                      <input
+                        id="explorer-search"
+                        type="text"
+                        value={explorerSearchQuery}
+                        onChange={(e) => setExplorerSearchQuery(e.target.value)}
+                        placeholder="习俗关键词，反查月份…"
+                        enterKeyHint="search"
+                        inputMode="search"
+                        autoComplete="off"
+                        autoCorrect="off"
+                        spellCheck={false}
+                        className="w-full min-h-[48px] rounded-2xl border-0 bg-transparent py-3 pl-11 pr-11 text-base text-ink placeholder:text-ink/40 focus:outline-none focus:ring-2 focus:ring-olive/25 touch-manipulation"
+                      />
+                      {explorerSearchQuery.trim() ? (
+                        <button
+                          type="button"
+                          aria-label="清空搜索"
+                          className="absolute right-1.5 top-1/2 flex size-10 -translate-y-1/2 items-center justify-center rounded-full text-ink/45 hover:bg-ink/10 hover:text-ink touch-manipulation"
+                          onClick={() => setExplorerSearchQuery('')}
+                        >
+                          <X size={18} />
+                        </button>
+                      ) : null}
+                    </div>
+                  </form>
+                  <p className="min-h-[1.25rem] px-0.5 text-xs text-ink/50 sm:text-[11px]">
                     {explorerSearchQuery.trim()
                       ? explorerSearching
                         ? '搜索中…'
                         : `命中月份：${explorerSearchMonthSet ? explorerSearchMonthSet.size : 0}`
-                      : '可按习俗关键词反查月份'}
-                  </div>
+                      : '输入如：元宵、春牛、轧神仙'}
+                  </p>
                 </div>
-                {MONTHS
-                  .filter((month) => !explorerSearchMonthSet || explorerSearchMonthSet.has(month))
-                  .map(month => (
-                  <button
-                    key={month}
-                    onClick={() => setSelectedMonth(month)}
-                    className={cn(
-                      "px-6 py-3 rounded-2xl text-left transition-all whitespace-nowrap serif text-lg",
-                      selectedMonth === month 
-                        ? "bg-olive text-white shadow-lg scale-105" 
-                        : "bg-white/50 hover:bg-white border border-ink/5"
-                    )}
-                  >
-                    {month}
-                  </button>
-                ))}
-                {explorerSearchMonthSet && explorerSearchMonthSet.size === 0 && (
-                  <p className="text-xs text-ink/50 px-2 py-2">未找到匹配月份，请换个关键词</p>
-                )}
+                <div className="-mx-1 flex min-h-0 gap-2 overflow-x-auto px-1 pb-1 scrollbar-hide sm:-mx-0 sm:px-0 lg:mx-0 lg:flex-1 lg:flex-col lg:overflow-y-auto lg:overflow-x-visible lg:px-0 lg:pb-0">
+                  {MONTHS
+                    .filter((month) => !explorerSearchMonthSet || explorerSearchMonthSet.has(month))
+                    .map((month) => (
+                      <button
+                        key={month}
+                        type="button"
+                        onClick={() => {
+                          setSelectedMonth(month);
+                          if (explorerSearchQuery.trim()) setExplorerSearchQuery('');
+                        }}
+                        className={cn(
+                          'shrink-0 rounded-2xl border px-5 py-3 text-left font-serif text-base transition-all sm:px-6 sm:text-lg lg:w-full',
+                          selectedMonth === month
+                            ? 'scale-[1.02] border-olive bg-olive text-white shadow-lg lg:scale-105'
+                            : 'border-ink/5 bg-white/50 hover:bg-white sm:border',
+                        )}
+                      >
+                        {month}
+                      </button>
+                    ))}
+                  {explorerSearchMonthSet && explorerSearchMonthSet.size === 0 && (
+                    <p className="w-full shrink-0 self-center px-2 py-2 text-xs text-ink/50 lg:w-auto">
+                      未找到匹配月份，请换个关键词
+                    </p>
+                  )}
+                </div>
               </div>
 
               {/* Month Content */}
               <div className="lg:col-span-9 space-y-6">
-                {loading ? (
+                {explorerSearchQuery.trim() ? (
+                  <div className="rounded-[24px] border border-olive/25 bg-white p-4 card-shadow sm:p-6">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0">
+                        <h3 className="font-serif text-lg font-bold text-olive">《清嘉录》原文搜索结果</h3>
+                        <p className="mt-1 text-xs text-ink/55 sm:text-sm">
+                          {explorerSearching
+                            ? '正在检索原文小节…'
+                            : explorerSearchTotalMatches > 0
+                              ? `「${explorerSearchQuery.trim()}」命中 ${explorerSearchTotalMatches} 条小节${
+                                  explorerSearchTotalMatches > explorerSearchHits.length
+                                    ? `，下列展示前 ${explorerSearchHits.length} 条`
+                                    : ''
+                                }。下方时令卡片已暂时隐藏；点某条「查看该月卡片」或左侧月份、或「清除搜索」后可继续浏览卡片。`
+                              : '未在本地原文索引中检索到匹配小节，可换个词或检查后端是否已更新。'}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setExplorerSearchQuery('')}
+                        className="shrink-0 self-start rounded-full border border-ink/15 px-4 py-2 text-sm text-ink/70 hover:bg-ink/5 touch-manipulation min-h-[40px]"
+                      >
+                        清除搜索
+                      </button>
+                    </div>
+                    {!explorerSearching && explorerSearchHits.length === 0 && explorerSearchTotalMatches > 0 ? (
+                      <p className="mt-4 rounded-xl border border-amber-200/80 bg-amber-50/90 px-3 py-3 text-xs text-amber-900 sm:text-sm">
+                        已命中 {explorerSearchTotalMatches} 条原文，但当前接口未返回条文列表。请将服务端更新到含「search-months」条文摘要的版本，或先在左侧切换月份阅读卡片。
+                      </p>
+                    ) : null}
+                    {!explorerSearching && explorerSearchHits.length > 0 ? (
+                      <ul className="mt-4 max-h-[min(52dvh,520px)] space-y-3 overflow-y-auto overscroll-contain pr-0.5">
+                        {explorerSearchHits.map((hit) => (
+                          <li
+                            key={hit.id}
+                            className="rounded-xl border border-ink/10 bg-paper/70 p-3 sm:p-4"
+                          >
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="rounded-full bg-olive/12 px-2.5 py-0.5 text-xs font-semibold text-olive">
+                                {hit.month}
+                              </span>
+                              <span className="min-w-0 font-serif text-sm font-semibold text-ink sm:text-base">
+                                {hit.title}
+                              </span>
+                            </div>
+                            <p
+                              className="mt-2 text-xs leading-relaxed text-ink/75 sm:text-sm [&_mark]:rounded [&_mark]:px-0.5"
+                              dangerouslySetInnerHTML={{
+                                __html: highlightHtml(hit.snippet, explorerSearchQuery.trim()),
+                              }}
+                            />
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={() => void openQjlSection(hit.id, explorerSearchQuery.trim())}
+                                className="rounded-xl border border-olive/40 bg-white px-3 py-2 text-xs font-medium text-olive hover:bg-olive/10 touch-manipulation min-h-[40px] sm:text-sm"
+                              >
+                                打开原文
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedMonth(hit.month);
+                                  setExplorerSearchQuery('');
+                                }}
+                                className="rounded-xl border border-ink/15 bg-white px-3 py-2 text-xs font-medium text-ink/80 hover:bg-ink/5 touch-manipulation min-h-[40px] sm:text-sm"
+                              >
+                                查看该月卡片
+                              </button>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                {!explorerSearchQuery.trim() && loading ? (
                   <div className="h-64 flex flex-col items-center justify-center gap-4 text-olive/60">
                     <Loader2 className="animate-spin" size={40} />
                     <p className="serif italic">
@@ -1193,11 +1356,11 @@ export default function App() {
                         : '加载中（已生成过则读库，不重复调模型）…'}
                     </p>
                   </div>
-                ) : (
+                ) : !explorerSearchQuery.trim() ? (
                   <>
-                    <div className="bg-white p-8 rounded-[32px] card-shadow border border-ink/5">
+                    <div className="bg-white p-5 sm:p-8 rounded-[32px] card-shadow border border-ink/5">
                       <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
-                        <h2 className="serif text-4xl font-bold text-olive">{selectedMonth} · 概要</h2>
+                        <h2 className="serif text-3xl sm:text-4xl font-bold text-olive">{selectedMonth} · 概要</h2>
                         <div className="flex flex-wrap gap-2">
                           {monthSourceMeta?.grounded && (
                             <span className="text-xs bg-olive/10 text-olive px-3 py-1.5 rounded-full font-medium">
@@ -1283,7 +1446,6 @@ export default function App() {
                                 const name =
                                   custom.name?.trim() ||
                                   (custom.description?.slice(0, 20).trim() || '该习俗');
-                                setBookInitialMonth(selectedMonth);
                                 setBookInitialTopic(name);
                                 goTab('book');
                               }}
@@ -1311,7 +1473,7 @@ export default function App() {
                       </div>
                     )}
                   </>
-                )}
+                ) : null}
               </div>
             </motion.div>
           )}
@@ -1322,10 +1484,10 @@ export default function App() {
               initial={{ opacity: 0, scale: 0.98 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.98 }}
-              className="max-w-6xl mx-auto w-full h-[72vh]"
+              className="max-w-6xl mx-auto w-full min-h-[min(72vh,520px)] h-[calc(100dvh-14rem)] md:h-[72vh] md:max-h-[820px]"
             >
-              <div className="h-full grid grid-cols-1 md:grid-cols-[260px_minmax(0,1fr)] gap-4">
-                <aside className="bg-white/70 border border-ink/10 rounded-2xl p-3 card-shadow flex flex-col min-h-0">
+              <div className="h-full grid grid-cols-1 md:grid-cols-[260px_minmax(0,1fr)] gap-4 min-h-0">
+                <aside className="bg-white/70 border border-ink/10 rounded-2xl p-3 card-shadow flex flex-col min-h-0 max-h-[32vh] md:max-h-none">
                   <button
                     type="button"
                     onClick={createNewChatSession}
@@ -1401,7 +1563,13 @@ export default function App() {
                 </aside>
 
                 <div className="flex flex-col min-h-0">
-                  <div className="flex-1 overflow-y-auto space-y-6 p-4 scrollbar-hide bg-white/40 rounded-2xl border border-ink/10 card-shadow">
+                  <div
+                    className="flex-1 overflow-y-auto space-y-6 p-4 scrollbar-hide bg-white/40 rounded-2xl border border-ink/10 card-shadow"
+                    style={{
+                      paddingBottom:
+                        chatComposerLift > 0 ? `calc(1rem + ${Math.round(chatComposerLift)}px)` : undefined,
+                    }}
+                  >
                     {chatHistory.length === 0 && (
                       <div className="text-center py-12 space-y-4">
                         <div className="w-16 h-16 bg-olive/10 text-olive rounded-full flex items-center justify-center mx-auto">
@@ -1434,12 +1602,12 @@ export default function App() {
                             <ReactMarkdown>{msg.content}</ReactMarkdown>
                           </div>
                           {msg.role === 'assistant' && (
-                            <div className="mt-4 pt-3 border-t border-ink/10 flex items-center gap-3 text-ink/55">
+                            <div className="mt-4 pt-3 border-t border-ink/10 flex flex-wrap items-center gap-2 sm:gap-3 text-ink/55 touch-manipulation">
                               <button
                                 type="button"
                                 title="复制"
                                 onClick={() => copyChatMessage(msg.content)}
-                                className="hover:text-olive transition-colors"
+                                className="hover:text-olive transition-colors min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg hover:bg-ink/5"
                               >
                                 <Copy size={16} />
                               </button>
@@ -1447,7 +1615,7 @@ export default function App() {
                                 type="button"
                                 title="重答"
                                 onClick={() => regenerateAssistantReply(i)}
-                                className="hover:text-olive transition-colors disabled:opacity-40"
+                                className="hover:text-olive transition-colors disabled:opacity-40 min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg hover:bg-ink/5"
                                 disabled={isChatLoading}
                               >
                                 <RotateCcw size={16} />
@@ -1456,7 +1624,10 @@ export default function App() {
                                 type="button"
                                 title={speakingMsgIndex === i ? '停止朗读' : '朗读'}
                                 onClick={() => speak(msg.content, i)}
-                                className={cn("transition-colors", speakingMsgIndex === i ? "text-vermilion" : "hover:text-olive")}
+                                className={cn(
+                                  'transition-colors min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg hover:bg-ink/5',
+                                  speakingMsgIndex === i ? 'text-vermilion' : 'hover:text-olive',
+                                )}
                               >
                                 {speakingMsgIndex === i ? <Square size={16} fill="currentColor" /> : <Volume2 size={16} />}
                               </button>
@@ -1464,7 +1635,10 @@ export default function App() {
                                 type="button"
                                 title="赞"
                                 onClick={() => setChatFeedback((prev) => ({ ...prev, [i]: 'up' }))}
-                                className={cn("transition-colors hover:text-olive", chatFeedback[i] === 'up' && "text-olive")}
+                                className={cn(
+                                  'transition-colors hover:text-olive min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg hover:bg-ink/5',
+                                  chatFeedback[i] === 'up' && 'text-olive',
+                                )}
                               >
                                 <ThumbsUp size={16} />
                               </button>
@@ -1472,7 +1646,10 @@ export default function App() {
                                 type="button"
                                 title="踩"
                                 onClick={() => setChatFeedback((prev) => ({ ...prev, [i]: 'down' }))}
-                                className={cn("transition-colors hover:text-olive", chatFeedback[i] === 'down' && "text-vermilion")}
+                                className={cn(
+                                  'transition-colors hover:text-olive min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg hover:bg-ink/5',
+                                  chatFeedback[i] === 'down' && 'text-vermilion',
+                                )}
                               >
                                 <ThumbsDown size={16} />
                               </button>
@@ -1480,7 +1657,7 @@ export default function App() {
                                 type="button"
                                 title="分享"
                                 onClick={() => shareChatMessage(msg.content)}
-                                className="hover:text-olive transition-colors"
+                                className="hover:text-olive transition-colors min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg hover:bg-ink/5"
                               >
                                 <Share2 size={16} />
                               </button>
@@ -1499,22 +1676,32 @@ export default function App() {
                     )}
                   </div>
 
-                  <form onSubmit={handleChat} className="mt-4 relative">
-                    <input
-                      type="text"
-                      value={chatQuery}
-                      onChange={(e) => setChatQuery(e.target.value)}
-                      placeholder="输入您想了解的民俗或词汇..."
-                      className="w-full bg-white p-5 pr-16 rounded-full card-shadow border border-ink/10 focus:outline-none focus:border-olive transition-all"
-                    />
-                    <button 
-                      type="submit"
-                      disabled={isChatLoading || !chatQuery.trim()}
-                      className="absolute right-3 top-3 w-10 h-10 bg-olive text-white rounded-full flex items-center justify-center hover:scale-105 transition-transform disabled:opacity-50"
-                    >
-                      <ChevronRight size={20} />
-                    </button>
-                  </form>
+                  <div
+                    className="mt-4 shrink-0"
+                    style={{
+                      transform: chatComposerLift ? `translateY(-${Math.round(chatComposerLift)}px)` : undefined,
+                      transition: 'transform 0.15s ease-out',
+                    }}
+                  >
+                    <form onSubmit={handleChat} className="relative pb-[max(0px,env(safe-area-inset-bottom))]">
+                      <input
+                        type="text"
+                        value={chatQuery}
+                        onChange={(e) => setChatQuery(e.target.value)}
+                        placeholder="输入您想了解的民俗或词汇..."
+                        enterKeyHint="send"
+                        className="w-full bg-white p-4 sm:p-5 pr-14 sm:pr-16 text-base rounded-full card-shadow border border-ink/10 focus:outline-none focus:border-olive transition-all touch-manipulation"
+                      />
+                      <button
+                        type="submit"
+                        disabled={isChatLoading || !chatQuery.trim()}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 h-11 w-11 sm:right-3 sm:h-10 sm:w-10 bg-olive text-white rounded-full flex items-center justify-center hover:scale-105 transition-transform disabled:opacity-50 touch-manipulation"
+                        aria-label="发送"
+                      >
+                        <ChevronRight size={20} />
+                      </button>
+                    </form>
+                  </div>
                 </div>
               </div>
             </motion.div>
@@ -1525,66 +1712,104 @@ export default function App() {
               key="geo"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start"
+              className="grid grid-cols-1 items-start gap-4 lg:grid-cols-12 lg:gap-8"
             >
-              <div className="lg:col-span-3 self-start flex lg:flex-col gap-2 overflow-x-auto lg:overflow-y-auto pb-4 lg:pb-0 lg:sticky lg:top-24 lg:max-h-[calc(100vh-8rem)] lg:pr-1 scrollbar-hide">
-                <div className="w-full mb-1">
-                  <input
-                    type="text"
-                    value={geoSearchInput}
-                    onChange={(e) => setGeoSearchInput(e.target.value)}
-                    placeholder="搜索地名/地点（如 虎丘、玄妙观）"
-                    className="w-full px-4 py-2.5 rounded-2xl border border-ink/10 bg-white/70 text-sm focus:outline-none focus:border-olive"
-                  />
-                  <div className="mt-1 text-[11px] text-ink/50 min-h-[1rem]">
-                    {geoSearchInput.trim() ? `聚合命中 ${geoPlaces.length} 个地点` : '按地名聚合搜索（已覆盖普通搜索）'}
-                  </div>
-                </div>
-                {MONTHS.map((month) => (
-                  <button
-                    key={`geo-month-${month}`}
-                    type="button"
-                    onClick={() => setSelectedMonth(month)}
-                    className={cn(
-                      'px-6 py-3 rounded-2xl text-left transition-all whitespace-nowrap serif text-lg',
-                      selectedMonth === month
-                        ? 'bg-olive text-white shadow-lg scale-105'
-                        : 'bg-white/60 hover:bg-white border border-ink/10 text-ink/80'
-                    )}
+              <div className="flex w-full min-w-0 flex-col gap-3 self-start lg:col-span-3 lg:sticky lg:top-24 lg:max-h-[calc(100dvh-8rem)] lg:pr-1">
+                <div className="w-full shrink-0 space-y-1.5">
+                  <label htmlFor="geo-place-search" className="sr-only">
+                    按地名搜索并聚合地点
+                  </label>
+                  <form
+                    className="w-full"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      void runGeoSearch();
+                    }}
                   >
-                    {month}
+                    <div className="relative rounded-2xl border border-ink/15 bg-white shadow-sm ring-1 ring-ink/5">
+                      <Search className="pointer-events-none absolute left-3.5 top-1/2 size-[18px] -translate-y-1/2 text-ink/35" aria-hidden />
+                      <input
+                        id="geo-place-search"
+                        type="text"
+                        value={geoSearchInput}
+                        onChange={(e) => setGeoSearchInput(e.target.value)}
+                        placeholder="地名，如 虎丘、玄妙观…"
+                        enterKeyHint="search"
+                        inputMode="search"
+                        autoComplete="off"
+                        autoCorrect="off"
+                        spellCheck={false}
+                        className="w-full min-h-[48px] rounded-2xl border-0 bg-transparent py-3 pl-11 pr-11 text-base text-ink placeholder:text-ink/40 focus:outline-none focus:ring-2 focus:ring-olive/25 touch-manipulation"
+                      />
+                      {geoSearchInput.trim() ? (
+                        <button
+                          type="button"
+                          aria-label="清空地名搜索"
+                          className="absolute right-1.5 top-1/2 flex size-10 -translate-y-1/2 items-center justify-center rounded-full text-ink/45 hover:bg-ink/10 hover:text-ink touch-manipulation"
+                          onClick={() => {
+                            setGeoSearchInput('');
+                            setGeoCustomFilter(null);
+                            void fetchGeoPlaces(selectedMonth);
+                          }}
+                        >
+                          <X size={18} />
+                        </button>
+                      ) : null}
+                    </div>
+                  </form>
+                  <p className="min-h-[1.25rem] px-0.5 text-xs text-ink/50 sm:text-[11px]">
+                    {geoSearchInput.trim()
+                      ? `聚合命中 ${geoPlaces.length} 个地点`
+                      : '输入地名后自动聚合；亦可点下方「聚合搜索」'}
+                  </p>
+                </div>
+                <div className="-mx-1 flex min-h-0 gap-2 overflow-x-auto px-1 pb-1 scrollbar-hide sm:-mx-0 sm:px-0 lg:mx-0 lg:flex-1 lg:flex-col lg:overflow-y-auto lg:overflow-x-visible lg:px-0 lg:pb-0">
+                  {MONTHS.map((month) => (
+                    <button
+                      key={`geo-month-${month}`}
+                      type="button"
+                      onClick={() => setSelectedMonth(month)}
+                      className={cn(
+                        'shrink-0 rounded-2xl border px-5 py-3 text-left font-serif text-base transition-all sm:px-6 sm:text-lg lg:w-full',
+                        selectedMonth === month
+                          ? 'scale-[1.02] border-olive bg-olive text-white shadow-lg lg:scale-105'
+                          : 'border-ink/10 bg-white/60 text-ink/80 hover:bg-white sm:border',
+                      )}
+                    >
+                      {month}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => void runGeoSearch()}
+                    className="shrink-0 rounded-2xl border border-ink/20 bg-white px-4 py-3 text-left text-sm text-ink/70 hover:bg-ink/5 touch-manipulation min-h-[48px] lg:w-full"
+                  >
+                    聚合搜索
                   </button>
-                ))}
-                <button
-                  type="button"
-                  onClick={() => void runGeoSearch()}
-                  className="px-6 py-3 rounded-2xl text-left text-sm border border-ink/20 bg-white text-ink/70 hover:bg-ink/5 whitespace-nowrap"
-                >
-                  聚合搜索
-                </button>
-                <button
-                  type="button"
-                  onClick={() => fetchGeoPlaces(selectedMonth, true)}
-                  className="px-6 py-3 rounded-2xl text-left text-sm border border-ink/20 bg-white text-ink/70 hover:bg-ink/5 whitespace-nowrap"
-                >
-                  重新抽取
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setGeoSearchInput('');
-                    setGeoCustomFilter(null);
-                    fetchGeoPlaces(selectedMonth);
-                  }}
-                  className="px-6 py-3 rounded-2xl text-left text-sm border border-ink/20 bg-white text-ink/70 hover:bg-ink/5 whitespace-nowrap"
-                >
-                  清空搜索
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => fetchGeoPlaces(selectedMonth, true)}
+                    className="shrink-0 rounded-2xl border border-ink/20 bg-white px-4 py-3 text-left text-sm text-ink/70 hover:bg-ink/5 touch-manipulation min-h-[48px] lg:w-full"
+                  >
+                    重新抽取
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setGeoSearchInput('');
+                      setGeoCustomFilter(null);
+                      fetchGeoPlaces(selectedMonth);
+                    }}
+                    className="shrink-0 rounded-2xl border border-ink/20 bg-white px-4 py-3 text-left text-sm text-ink/70 hover:bg-ink/5 touch-manipulation min-h-[48px] lg:w-full"
+                  >
+                    清空条件
+                  </button>
+                </div>
               </div>
 
               <div className="lg:col-span-9 space-y-6">
                 <div className="text-center max-w-2xl mx-auto">
-                  <h2 className="serif text-4xl font-bold text-olive mb-4">古今地理对照</h2>
+                  <h2 className="serif text-3xl sm:text-4xl font-bold text-olive mb-4">古今地理对照</h2>
                   <p className="opacity-60 italic">追踪《清嘉录》中提到的苏州地标，支持按月份动态筛选与原文引用溯源。</p>
                 </div>
 
@@ -1711,8 +1936,31 @@ export default function App() {
                         <p className="text-sm opacity-80">{place.modernSummary}</p>
                       </div>
                       <div>
-                        <span className="text-[10px] font-bold text-ink/60 uppercase tracking-wider block mb-1">原文依据</span>
-                        <div className="space-y-1.5">
+                        <div className="mb-1 flex flex-wrap items-center gap-2">
+                          <span className="text-[10px] font-bold text-ink/60 uppercase tracking-wider">原文依据</span>
+                          {geoViewportNarrow && place.citations.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setGeoCiteExpanded((prev) => ({
+                                  ...prev,
+                                  [place.id]: !prev[place.id],
+                                }))
+                              }
+                              className="text-xs text-olive underline touch-manipulation min-h-[36px] px-1"
+                            >
+                              {geoCiteExpanded[place.id]
+                                ? '收起引文'
+                                : `展开引文（${place.citations.length}）`}
+                            </button>
+                          )}
+                        </div>
+                        <div
+                          className={cn(
+                            'space-y-1.5',
+                            geoViewportNarrow && !geoCiteExpanded[place.id] && 'hidden',
+                          )}
+                        >
                           {place.citations.map((citation, idx) => (
                             <div key={`${place.id}-citation-${idx}`} className="text-xs opacity-75 leading-relaxed space-y-1">
                               <div className="flex flex-wrap items-center gap-2">
@@ -1725,14 +1973,14 @@ export default function App() {
                                 </span>
                                 <button
                                   type="button"
-                                  className="text-[10px] text-olive underline"
+                                  className="text-[10px] text-olive underline touch-manipulation"
                                   onClick={() => openQjlSection(citation.sectionId, citation.quoteText, citation.chapterTitle)}
                                 >
                                   打开原文并高亮
                                 </button>
                                 <button
                                   type="button"
-                                  className="text-[10px] text-ink/60 underline"
+                                  className="text-[10px] text-ink/60 underline touch-manipulation"
                                   onClick={() =>
                                     void copyTextToClipboard(formatGeoCitationLine(place, citation))
                                   }
@@ -1808,9 +2056,9 @@ export default function App() {
               key="graph"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="grid grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)] gap-6 flex-1 min-h-[760px]"
+              className="grid grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)] gap-4 sm:gap-6 flex-1 min-h-0 w-full lg:min-h-[760px]"
             >
-              <aside className="self-start bg-white/70 rounded-2xl border border-ink/10 p-4 min-h-[760px] h-[760px] flex flex-col gap-3">
+              <aside className="self-start bg-white/70 rounded-2xl border border-ink/10 p-4 flex flex-col gap-3 max-h-[38dvh] overflow-y-auto overscroll-y-contain lg:max-h-none lg:min-h-[760px] lg:h-[760px] lg:overflow-y-auto">
                 <div className="text-xs font-bold uppercase tracking-widest text-ink/50">图谱导航</div>
                 <div className="inline-flex w-full gap-1 rounded-full bg-ink/5 p-1">
                   <button
@@ -1872,7 +2120,7 @@ export default function App() {
                 </p>
               </aside>
 
-              <section className="flex flex-col min-h-[760px]">
+              <section className="flex flex-col min-h-[280px] h-[56dvh] max-h-[760px] lg:min-h-[760px] lg:h-[760px] lg:max-h-none">
                 {graphMode === 'explore' ? (
                   <FolkloreGraph onOpenQjlSection={openQjlSection} month={graphMonth ?? undefined} />
                 ) : (
@@ -1889,7 +2137,7 @@ export default function App() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
             >
-              <PictureBookView initialReferenceMonth={bookInitialMonth} initialTopic={bookInitialTopic} />
+              <PictureBookView initialTopic={bookInitialTopic} />
             </motion.div>
           )}
 
@@ -1910,10 +2158,10 @@ export default function App() {
                   animate={{ x: 0 }}
                   exit={{ x: '100%' }}
                   transition={{ type: 'tween', duration: 0.2 }}
-                  className="w-full max-w-2xl bg-paper shadow-xl h-full overflow-hidden flex flex-col border-l border-ink/10"
+                  className="w-full max-w-2xl bg-paper shadow-xl h-full overflow-hidden flex flex-col border-l border-ink/10 max-h-[100dvh] pt-[env(safe-area-inset-top)]"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <div className="flex items-center justify-between gap-2 p-4 border-b border-ink/10">
+                  <div className="flex items-center justify-between gap-2 p-4 border-b border-ink/10 shrink-0">
                     <div className="min-w-0">
                       <h3 className="serif text-lg font-bold text-olive truncate">
                         {qjlSectionContent ? qjlSectionContent.title : `${qjlSectionMonth || selectedMonth} · 原文目录`}
@@ -1931,7 +2179,7 @@ export default function App() {
                       <X size={20} />
                     </button>
                   </div>
-                  <div className="flex-1 overflow-y-auto p-4">
+                  <div className="flex-1 overflow-y-auto overscroll-contain p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
                     {qjlSectionContent ? (
                       <>
                         <button
@@ -2029,7 +2277,7 @@ export default function App() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-ink/10 py-8 px-4 text-center opacity-40 text-xs tracking-widest uppercase font-medium">
+      <footer className="border-t border-ink/10 py-6 sm:py-8 px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] text-center opacity-40 text-xs tracking-widest uppercase font-medium">
         基于清 · 顾禄《清嘉录》 | AI 赋能民俗研究
       </footer>
 
@@ -2040,9 +2288,12 @@ export default function App() {
 function NavButton({ active, onClick, icon, label }: { active: boolean, onClick: () => void, icon: React.ReactNode, label: string }) {
   return (
     <button
+      type="button"
+      title={label}
+      aria-label={label}
       onClick={onClick}
       className={cn(
-        "flex items-center gap-2 px-4 py-2 rounded-full transition-all text-sm font-medium",
+        "flex items-center gap-2 px-3 py-2.5 sm:px-4 sm:py-2 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 justify-center rounded-full transition-all text-sm font-medium touch-manipulation",
         active ? "bg-white text-olive shadow-sm" : "text-ink/60 hover:text-ink hover:bg-white/50"
       )}
     >

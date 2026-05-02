@@ -27,7 +27,6 @@ type SavedQuery = {
   sortMode: SortMode;
 };
 const QUERY_STORAGE_KEY = 'qingjialu.research.workbench.query.v1';
-const LEGACY_QUERY_STORAGE_KEY = 'qingjialu.research.workbench.query.v1';
 const QUERY_LIST_STORAGE_KEY = 'qingjialu.research.workbench.queries.v1';
 
 const ENTITY_LABEL: Record<EntityType, string> = {
@@ -162,7 +161,7 @@ export default function ResearchWorkbench({ onOpenQjlSection, month }: Props) {
           return;
         }
       }
-      const legacyRaw = localStorage.getItem(LEGACY_QUERY_STORAGE_KEY);
+      const legacyRaw = localStorage.getItem(QUERY_STORAGE_KEY);
       if (legacyRaw) {
         const legacyParsed = JSON.parse(legacyRaw) as Partial<SavedQuery>;
         applySavedQuery(legacyParsed);
@@ -551,7 +550,7 @@ export default function ResearchWorkbench({ onOpenQjlSection, month }: Props) {
   };
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 min-h-[700px]">
+    <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 min-h-[420px] xl:min-h-[700px]">
       <aside className="xl:col-span-3 bg-white/80 rounded-2xl border border-ink/10 p-4 space-y-4">
         <div className="text-sm font-bold text-olive flex items-center gap-2"><Filter size={14} />研究筛选</div>
         <select
