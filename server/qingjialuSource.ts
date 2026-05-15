@@ -63,7 +63,7 @@ export function getSectionSummariesByMonth(month: string): Pick<QingJiaLuSection
 }
 
 /** 从用户随意提问中抽取用于检索的关键词（软规则，无需严格 NLP） */
-export function extractQjlKeywordsFromMessage(message: string): string[] {
+function extractQjlKeywordsFromMessage(message: string): string[] {
   const text = message.trim();
   if (!text) return [];
 
