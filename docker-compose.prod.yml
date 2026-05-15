@@ -1,14 +1,17 @@
-# 生产部署（与 docker-compose.yml 的开发模式分离）
+# 清嘉录 生产编排（PostgreSQL + API + Nginx HTTPS）
+# Nginx 配置路径：deploy/nginx.docker.conf（由 Dockerfile 打入镜像）。
 #
-# 准备：
-#   1. 挂载数据盘到 /data（见《部署手册》）
-#   2. sudo mkdir -p /data/qjl/pgdata && sudo chown 70:70 /data/qjl/pgdata   # postgres:16-alpine 默认 UID 多为 70；若起不来见手册「权限」
-#   3. cp .env.docker.prod.example .env.docker.prod && 编辑密钥
-#
-# 启动：
 #   docker compose -f docker-compose.prod.yml --env-file .env.docker.prod up -d --build
 #
-# 访问：http://服务器IP 或 域名（同域 /api，勿设 VITE_API_BASE）
+# 自检：grep QJL_COMPOSE_LAYOUT docker-compose.prod.yml
+#       grep -nE 'context:|dockerfile:' docker-compose.prod.yml
+# down / ps / logs 也需：--env-file .env.docker.prod（或复制为同目录 .env）
+# 证书：NGINX_SSL_CERT_DIR，默认宿主 /data/qjl/app/cert → 容器 /etc/nginx/ssl
+# 数据库：未设 PGDATA_HOST_PATH 时用命名卷 qjlpg_prod；生产建议在 .env 写 PGDATA_HOST_PATH=/data/qjl/pgdata
+#
+# QJL_COMPOSE_LAYOUT=repo-root-v3
+
+name: qingjialu
 
 services:
   db:
@@ -61,6 +64,9 @@ services:
         condition: service_healthy
     ports:
       - "${WEB_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    volumes:
+      - ${NGINX_SSL_CERT_DIR:-/data/qjl/app/cert}:/etc/nginx/ssl:ro
     restart: unless-stopped
 
 volumes:

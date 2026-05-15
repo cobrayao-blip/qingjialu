@@ -32,7 +32,7 @@ export function UserLoginForm(props: UserLoginFormProps) {
       key="user-login"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="min-h-screen flex items-center justify-center bg-paper text-ink px-4"
+      className="min-h-[100dvh] min-h-screen flex items-center justify-center bg-paper text-ink px-4 py-6 pt-[max(1.5rem,env(safe-area-inset-top))] pb-[max(1.5rem,env(safe-area-inset-bottom))]"
     >
       <div className="w-full max-w-md bg-white rounded-[24px] border border-ink/10 p-6 space-y-4">
         <div className="text-center space-y-2">
@@ -79,7 +79,11 @@ export function UserLoginForm(props: UserLoginFormProps) {
               {showPassword ? '隐藏密码' : '显示密码'}
             </button>
           </div>
-          {error && <p className="text-xs text-red-600">{error}</p>}
+          {error && (
+            <p className="text-xs text-red-600 whitespace-pre-wrap break-words" role="alert">
+              {error}
+            </p>
+          )}
           <button
             type="submit"
             disabled={busy || !props.username.trim() || !props.password}

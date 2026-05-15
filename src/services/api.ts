@@ -4,7 +4,9 @@
 
 import type { CanonicalGraph } from '../graph/folkloreGraphModel';
 
-const viteEnv = (typeof import.meta !== 'undefined' ? (import.meta as any).env : undefined) as { VITE_API_BASE?: string } | undefined;
+const viteEnv = (typeof import.meta !== 'undefined' ? (import.meta as any).env : undefined) as
+  | { VITE_API_BASE?: string; DEV?: boolean; MODE?: string }
+  | undefined;
 const API_BASE = viteEnv?.VITE_API_BASE
   ? String(viteEnv.VITE_API_BASE).replace(/\/$/, '')
   : '';
@@ -43,10 +45,28 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
       ...(hasAuth || !tok ? {} : { Authorization: `Bearer ${tok}` }),
     },
   });
-  const data = await res.json().catch(() => ({}));
+  const rawText = await res.text();
+  let data: Record<string, unknown> = {};
+  if (rawText.trim()) {
+    try {
+      data = JSON.parse(rawText) as Record<string, unknown>;
+    } catch {
+      data = {};
+    }
+  }
   if (!res.ok) {
-    const msg = (data && typeof data.error === 'string') ? data.error : `请求失败: ${res.status}`;
-    throw new Error(msg);
+    const base = typeof data.error === 'string' ? data.error : `请求失败: ${res.status}`;
+    const detail = typeof data.detail === 'string' ? data.detail : '';
+    const hint = typeof data.hint === 'string' ? data.hint : '';
+    const nonJson =
+      Boolean(viteEnv?.DEV) && rawText.trim() && Object.keys(data).length === 0
+        ? rawText.trim().slice(0, 400)
+        : '';
+    const extra =
+      Boolean(viteEnv?.DEV) && (detail || hint || nonJson)
+        ? [detail, hint, nonJson].filter(Boolean).join('\n')
+        : '';
+    throw new Error(extra ? `${base}\n${extra}` : base);
   }
   return data as T;
 }
@@ -436,6 +456,98 @@ export async function getFolkloreSubgraph(options?: {
   }
 }
 
+export type FolkloreGraphBundleMeta = {
+  schemaVersion: 1;
+  dataFile: string;
+  contentSha256: string;
+  fileMtimeMs: number;
+  entityCount: number;
+  relationCount: number;
+};
+
+/** 管理端：热重载磁盘上的 folklore-graph.v1.json */
+export async function postFolkloreGraphReload(): Promise<{
+  ok: boolean;
+  meta: FolkloreGraphBundleMeta;
+  evidence: {
+    totalRelations: number;
+    requiredRelations: number;
+    withEvidence: number;
+    pending: number;
+    coverage: number;
+  };
+}> {
+  return await request('/api/graph/reload', { method: 'POST', body: JSON.stringify({}) });
+}
+
+/** 管理端：按《清嘉录》原文补全图谱缺口 */
+export async function postFolkloreGraphMergeFromQjl(options: { dryRun: boolean }): Promise<{
+  dryRun?: boolean;
+  ok?: boolean;
+  sectionCount?: number;
+  addedPractices?: number;
+  skippedNoMonth?: number;
+  skippedNoTimeNode?: number;
+  entityCount?: number;
+  relationCount?: number;
+  meta?: FolkloreGraphBundleMeta;
+  evidence?: {
+    totalRelations: number;
+    requiredRelations: number;
+    withEvidence: number;
+    pending: number;
+    coverage: number;
+  };
+}> {
+  return await request('/api/graph/admin/merge-from-qjl', {
+    method: 'POST',
+    body: JSON.stringify({ dryRun: options.dryRun }),
+  });
+}
+
+export type FolkloreGraphDraftRow = {
+  id: number;
+  title: string;
+  payloadJson: string;
+  createdByUsername: string;
+  createdAt: string;
+};
+
+export async function listFolkloreGraphDraftsApi(): Promise<{ drafts: FolkloreGraphDraftRow[] }> {
+  return await request('/api/graph/admin/drafts');
+}
+
+export async function saveFolkloreGraphDraftApi(payload: {
+  title: string;
+  graph?: CanonicalGraph;
+}): Promise<{ ok: boolean; id: number }> {
+  return await request('/api/graph/admin/drafts', {
+    method: 'POST',
+    body: JSON.stringify({
+      title: payload.title,
+      ...(payload.graph ? { payload: payload.graph } : {}),
+    }),
+  });
+}
+
+export async function publishFolkloreGraphDraftApi(id: number): Promise<{
+  ok: boolean;
+  meta: FolkloreGraphBundleMeta;
+  evidence: {
+    totalRelations: number;
+    requiredRelations: number;
+    withEvidence: number;
+    pending: number;
+    coverage: number;
+  };
+}> {
+  return await request(`/api/graph/admin/publish-draft/${id}`, { method: 'POST', body: JSON.stringify({}) });
+}
+
+export async function deleteFolkloreGraphDraftApi(id: number): Promise<{ ok: boolean }> {
+  return await request(`/api/graph/admin/drafts/${id}`, { method: 'DELETE' });
+}
+
 /** 《清嘉录》某月小节目录（无正文） */
 export async function listQingJiaLuSections(month: string): Promise<{ month: string; count: number; sections: { id: string; title: string; juan: string; month?: string }[] } | null> {
   try {
@@ -446,13 +558,51 @@ export async function listQingJiaLuSections(month: string): Promise<{ month: str
   }
 }
 
-/** 按关键词反查可能月份（用于时令左栏搜索） */
-export async function searchQingJiaLuMonths(query: string): Promise<{ query: string; months: { month: string; count: number }[] } | null> {
+export type QjlSearchMonthHit = { id: string; month: string; title: string; snippet: string };
+
+/** 按关键词反查月份 + 原文命中小节（时令搜索） */
+export async function searchQingJiaLuMonths(query: string): Promise<{
+  query: string;
+  months: { month: string; count: number }[];
+  hits: QjlSearchMonthHit[];
+  totalMatches: number;
+} | null> {
   try {
     const q = encodeURIComponent(query.trim());
     return await request(`/api/qjl/search-months?q=${q}`);
   } catch {
     return null;
+  }
+}
+
+const PICTURE_BOOK_GROUND_FAIL_MSG =
+  '未在《清嘉录》原文中找到与这句描述相关的民俗内容。请围绕苏州传统节令、庙会、饮食、游艺等改写，或先用更具体的习俗名（如「轧神仙」「荷花生日」）再试。';
+
+/**
+ * 绘本主题是否在《清嘉录》原文中有依据（ground-topic）。网络或服务异常时不放行，与后端生成校验一致。
+ */
+export async function verifyPictureBookTopicGrounded(
+  topic: string,
+): Promise<{ grounded: true } | { grounded: false; message: string }> {
+  const t = topic.trim();
+  if (!t) return { grounded: false, message: '请用一句话描述你想看的民俗' };
+  try {
+    const q = encodeURIComponent(t);
+    const data = await request<{ grounded?: boolean; message?: string }>(`/api/qjl/ground-topic?q=${q}`);
+    if (data?.grounded === true) return { grounded: true };
+    if (data?.grounded === false) {
+      const msg = typeof data.message === 'string' && data.message.trim() ? data.message.trim() : PICTURE_BOOK_GROUND_FAIL_MSG;
+      return { grounded: false, message: msg };
+    }
+    return {
+      grounded: false,
+      message: '无法校验主题是否与《清嘉录》相符，请稍后重试。',
+    };
+  } catch {
+    return {
+      grounded: false,
+      message: '暂时无法连接服务以核对《清嘉录》原文，请检查网络后重试。',
+    };
   }
 }
 
@@ -567,15 +717,18 @@ export interface PictureBook {
   createdAt?: string;
 }
 
-/** 根据用户一句话生成绘本；可选传入民俗参考文案以结合《清嘉录》数据 */
+/** 从时令习俗卡片进入绘本时传入，后端按当月原文小节锚定剧本；sectionId 若存在则优先锁定该条，避免仅按标题匹配偏差 */
+export type PictureBookGenerateSource = { type: 'card'; month: string; customName: string; sectionId?: string };
+
+/** 根据用户一句话生成绘本；服务端从《清嘉录》组装参考。卡片路径请传 source。 */
 export async function generatePictureBook(
   topic: string,
   generateImage = true,
-  folkloreContext?: string
+  source?: PictureBookGenerateSource,
 ): Promise<PictureBook> {
   return request<PictureBook>('/api/picture-book/generate', {
     method: 'POST',
-    body: JSON.stringify({ topic, generateImage, folkloreContext }),
+    body: JSON.stringify({ topic, generateImage, ...(source ? { source } : {}) }),
   });
 }
 

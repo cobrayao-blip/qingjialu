@@ -1,5 +1,6 @@
 # 本地开发：前后端分容器运行，支持热更新，便于前端应用测试
 # 使用：docker compose up --build  然后访问 http://localhost:3000
+# 建议在项目根维护 .env（勿提交 git）：Compose 会用它替换 ${JWT_SECRET} 等并传入 api 容器
 # 生产部署请使用 docker-compose.prod.yml + Dockerfile.prod（见 docs/部署手册.md）
 
 services:
@@ -10,7 +11,7 @@ services:
       - POSTGRES_USER=qingjialu
       - POSTGRES_PASSWORD=qingjialu
     ports:
-      - "5432:5432"
+      - "5438:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     restart: unless-stopped
@@ -24,11 +25,16 @@ services:
       - NODE_ENV=development
       - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY:-}
       - PORT=3001
+      # api → db 仅走 Compose 网络：Postgres 在 db 容器内始终监听 5432，与宿主机 .env 里的 PG_PORT（给本机直连映射口用）无关
       - PG_HOST=db
       - PG_PORT=5432
       - PG_USER=qingjialu
       - PG_PASSWORD=qingjialu
       - PG_DATABASE=qingjialu
+      # 与宿主机项目根 .env 对齐（Compose 会从该文件做变量替换后传入容器）
+      - JWT_SECRET=${JWT_SECRET:-}
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
     volumes:
       - .:/app
       - app_node_modules:/app/node_modules

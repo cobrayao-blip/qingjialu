@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { GeoPlace, AuthUser, GeoReviewRecord } from '../services/api';
 
 type ManagedUserRole = 'viewer' | 'editor';
@@ -15,6 +15,13 @@ import {
   removeAuthUser,
   listGeoAuditLogs,
   listGeoAdminReviews,
+  postFolkloreGraphReload,
+  postFolkloreGraphMergeFromQjl,
+  listFolkloreGraphDraftsApi,
+  saveFolkloreGraphDraftApi,
+  publishFolkloreGraphDraftApi,
+  deleteFolkloreGraphDraftApi,
+  type FolkloreGraphDraftRow,
 } from '../services/api';
 
 type ReviewStatus = 'pending' | 'reviewed' | 'locked';
@@ -85,6 +92,9 @@ export function useAdminController(params: { isAdminRoute: boolean; selectedMont
   const [geoReviews, setGeoReviews] = useState<GeoReviewRecord[]>([]);
   const [reviewFilter, setReviewFilter] = useState<'all' | ReviewStatus>('all');
   const [reviewNoteDraft, setReviewNoteDraft] = useState<Record<string, string>>({});
+  const [graphAdminLog, setGraphAdminLog] = useState('');
+  const [graphAdminBusy, setGraphAdminBusy] = useState(false);
+  const [folkloreGraphDrafts, setFolkloreGraphDrafts] = useState<FolkloreGraphDraftRow[]>([]);
 
   /** 主站头部「管理后台」：有 admin 角色 JWT 即显示（不依赖 /auth/me 是否已返回，避免整页刷新后短暂空白） */
   const showAdminBackendEntry = useMemo(() => {
@@ -94,11 +104,12 @@ export function useAdminController(params: { isAdminRoute: boolean; selectedMont
     return jwtPayloadRole(t) === 'admin';
   }, [geoAdminToken, adminRole]);
 
-  const loadAuthUsers = async () => {
-    if (!geoAdminToken.trim()) return;
+  const loadAuthUsers = async (tokenOverride?: string) => {
+    const t = (tokenOverride ?? geoAdminToken).trim();
+    if (!t) return;
     setAuthUsersLoading(true);
     try {
-      const res = await listAuthUsers(geoAdminToken.trim());
+      const res = await listAuthUsers(t);
       setAuthUsers(res.users || []);
     } catch {
       setAuthUsers([]);
@@ -168,7 +179,7 @@ export function useAdminController(params: { isAdminRoute: boolean; selectedMont
     setAdminRole(r.user.role);
     setAdminUsername(r.user.username);
     persistJwt(r.token);
-    await loadAuthUsers();
+    await loadAuthUsers(r.token);
     // viewer 仅浏览主站，从后台登录页进入时回到首页
     if (r.user.role === 'viewer' && typeof window !== 'undefined' && window.location.pathname.startsWith('/admin')) {
       window.location.replace('/');
@@ -301,6 +312,105 @@ export function useAdminController(params: { isAdminRoute: boolean; selectedMont
     setReviewNoteDraft((prev) => ({ ...prev, [normalizePlaceKey(placeKey)]: note.slice(0, 500) }));
   };
 
+  const appendGraphLog = (s: string) => {
+    setGraphAdminLog((p) => `${p}\n${s}`.trim());
+  };
+
+  const refreshFolkloreGraphDrafts = useCallback(async () => {
+    const t = geoAdminToken.trim();
+    if (!t) return;
+    try {
+      const r = await listFolkloreGraphDraftsApi();
+      setFolkloreGraphDrafts(r.drafts || []);
+    } catch {
+      setFolkloreGraphDrafts([]);
+    }
+  }, [geoAdminToken]);
+
+  const handleFolkloreGraphReload = async () => {
+    setGraphAdminBusy(true);
+    try {
+      const r = await postFolkloreGraphReload();
+      appendGraphLog(JSON.stringify({ action: 'reload', meta: r.meta, evidence: r.evidence }, null, 2));
+    } catch (e) {
+      appendGraphLog(e instanceof Error ? e.message : '图谱热重载失败');
+    } finally {
+      setGraphAdminBusy(false);
+    }
+  };
+
+  const handleFolkloreGraphMergeDryRun = async () => {
+    setGraphAdminBusy(true);
+    try {
+      const r = await postFolkloreGraphMergeFromQjl({ dryRun: true });
+      appendGraphLog(JSON.stringify({ action: 'merge-preview', ...r }, null, 2));
+    } catch (e) {
+      appendGraphLog(e instanceof Error ? e.message : '合并预览失败');
+    } finally {
+      setGraphAdminBusy(false);
+    }
+  };
+
+  const handleFolkloreGraphMergeApply = async () => {
+    if (!window.confirm('确认将《清嘉录》未覆盖的小节写入 server/data/folklore-graph.v1.json？建议先「合并预览」并保存草稿。')) {
+      return;
+    }
+    setGraphAdminBusy(true);
+    try {
+      const r = await postFolkloreGraphMergeFromQjl({ dryRun: false });
+      appendGraphLog(JSON.stringify({ action: 'merge-apply', ...r }, null, 2));
+      await refreshFolkloreGraphDrafts();
+    } catch (e) {
+      appendGraphLog(e instanceof Error ? e.message : '合并写入失败');
+    } finally {
+      setGraphAdminBusy(false);
+    }
+  };
+
+  const handleSaveFolkloreGraphDraft = async (title: string) => {
+    const t = title.trim();
+    if (!t) {
+      alert('请填写草稿标题');
+      return;
+    }
+    setGraphAdminBusy(true);
+    try {
+      await saveFolkloreGraphDraftApi({ title: t });
+      appendGraphLog(`已保存草稿：${t}`);
+      await refreshFolkloreGraphDrafts();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : '保存失败');
+    } finally {
+      setGraphAdminBusy(false);
+    }
+  };
+
+  const handlePublishFolkloreGraphDraft = async (id: number) => {
+    if (!window.confirm(`确认发布草稿 #${id} 为线上图谱文件？`)) return;
+    setGraphAdminBusy(true);
+    try {
+      const r = await publishFolkloreGraphDraftApi(id);
+      appendGraphLog(JSON.stringify({ action: 'publish-draft', id, meta: r.meta, evidence: r.evidence }, null, 2));
+    } catch (e) {
+      alert(e instanceof Error ? e.message : '发布失败');
+    } finally {
+      setGraphAdminBusy(false);
+    }
+  };
+
+  const handleDeleteFolkloreGraphDraft = async (id: number) => {
+    if (!window.confirm(`删除草稿 #${id}？`)) return;
+    setGraphAdminBusy(true);
+    try {
+      await deleteFolkloreGraphDraftApi(id);
+      await refreshFolkloreGraphDrafts();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : '删除失败');
+    } finally {
+      setGraphAdminBusy(false);
+    }
+  };
+
   return {
     authBootstrapDone,
     adminUsername,
@@ -324,6 +434,9 @@ export function useAdminController(params: { isAdminRoute: boolean; selectedMont
     geoAdminMetricsText,
     geoAdminDiffText,
     geoAdminBusy,
+    graphAdminBusy,
+    graphAdminLog,
+    folkloreGraphDrafts,
     geoReviews,
     reviewFilter,
     setReviewFilter,
@@ -341,6 +454,13 @@ export function useAdminController(params: { isAdminRoute: boolean; selectedMont
     handleSetUserPassword,
     handleDeleteUser,
     handleReviewStatus,
+    refreshFolkloreGraphDrafts,
+    handleFolkloreGraphReload,
+    handleFolkloreGraphMergeDryRun,
+    handleFolkloreGraphMergeApply,
+    handleSaveFolkloreGraphDraft,
+    handlePublishFolkloreGraphDraft,
+    handleDeleteFolkloreGraphDraft,
   };
 }
 

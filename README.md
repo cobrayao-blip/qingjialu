@@ -36,7 +36,7 @@
 
 ## Docker
 
-- **生产**：`docker-compose.prod.yml` + `Dockerfile.prod`（PostgreSQL + API + Nginx，见 **[部署手册](docs/部署手册.md)**）。
+- **生产**：以仓库根 **`docker-compose.prod.yml`**、**`Dockerfile.prod`** 与 **`deploy/nginx.docker.conf`** 为准（PostgreSQL + API + Nginx HTTPS，见 **[部署手册](docs/部署手册.md)**）。服务器上若希望 **`git pull` 不覆盖**这三份，见 **`scripts/server-keep-prod-three-files.sh`**。
 - **开发**（热更新）：见下文「Docker 容器化开发」。
 
 ## Docker 容器化开发（推荐用于前端应用测试）

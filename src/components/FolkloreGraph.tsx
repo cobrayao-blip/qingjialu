@@ -226,7 +226,13 @@ export default function FolkloreGraph({ onOpenQjlSection, month }: FolkloreGraph
   const graphFetchDebounceRef = useRef<number | null>(null);
   const graphReqSeqRef = useRef(0);
   const lastGraphQueryKeyRef = useRef<string>('');
-  const controlsDragRef = useRef<{ mx: number; my: number; x: number; y: number } | null>(null);
+  const controlsDragRef = useRef<{
+    mx: number;
+    my: number;
+    x: number;
+    y: number;
+    pointerId: number;
+  } | null>(null);
 
   const legacyGraph = useMemo(() => buildLegacyMonthCustomRoleView(graph), [graph]);
   const tppGraph = useMemo(() => buildTimePlacePracticeView(graph), [graph]);
@@ -383,18 +389,27 @@ export default function FolkloreGraph({ onOpenQjlSection, month }: FolkloreGraph
   }, [viewPreset, relationFilter, onlyWithSources, month]);
 
   useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
     const updateDimensions = () => {
       if (containerRef.current) {
-        setDimensions({
-          width: containerRef.current.clientWidth,
-          height: containerRef.current.clientHeight,
-        });
+        const w = containerRef.current.clientWidth;
+        const h = containerRef.current.clientHeight;
+        if (w > 0 && h > 0) {
+          setDimensions({ width: w, height: h });
+        }
       }
     };
 
-    window.addEventListener('resize', updateDimensions);
     updateDimensions();
-    return () => window.removeEventListener('resize', updateDimensions);
+    window.addEventListener('resize', updateDimensions);
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(updateDimensions) : null;
+    ro?.observe(el);
+    return () => {
+      window.removeEventListener('resize', updateDimensions);
+      ro?.disconnect();
+    };
   }, []);
 
   const showGraphNotice = useCallback((message: string) => {
@@ -417,9 +432,9 @@ export default function FolkloreGraph({ onOpenQjlSection, month }: FolkloreGraph
   }, []);
 
   useEffect(() => {
-    const onMove = (e: MouseEvent) => {
+    const onPointerMove = (e: PointerEvent) => {
       const drag = controlsDragRef.current;
-      if (!drag || !containerRef.current) return;
+      if (!drag || e.pointerId !== drag.pointerId || !containerRef.current) return;
       const dx = e.clientX - drag.mx;
       const dy = e.clientY - drag.my;
       const panelW = 220;
@@ -430,14 +445,18 @@ export default function FolkloreGraph({ onOpenQjlSection, month }: FolkloreGraph
       const ny = Math.min(maxY, Math.max(8, drag.y + dy));
       setControlsPos({ x: nx, y: ny });
     };
-    const onUp = () => {
+    const endDrag = (e: PointerEvent) => {
+      const drag = controlsDragRef.current;
+      if (!drag || e.pointerId !== drag.pointerId) return;
       controlsDragRef.current = null;
     };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', endDrag);
+    window.addEventListener('pointercancel', endDrag);
     return () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', endDrag);
+      window.removeEventListener('pointercancel', endDrag);
     };
   }, []);
 
@@ -711,14 +730,21 @@ export default function FolkloreGraph({ onOpenQjlSection, month }: FolkloreGraph
       }
     }
 
-    const simulation = d3.forceSimulation<GraphNode>(filteredNodes)
-      .force('link', d3.forceLink<GraphNode, GraphLink>(filteredLinks).id((d) => d.id).distance(120))
-      .force('charge', d3.forceManyBody().strength(-400))
-      .force('center', d3.forceCenter((dimensions.width + reservedLeftWidth) / 2, dimensions.height / 2))
-      .force('collision', d3.forceCollide().radius(50))
-      .force('x', d3.forceX((dimensions.width + reservedLeftWidth) / 2).strength(0.1))
-      .force('y', d3.forceY(dimensions.height / 2).strength(0.1));
+    const n = filteredNodes.length;
+    const dense = n > 140;
+    const linkDistance = dense ? 88 : 120;
+    const chargeStrength = dense ? -240 : -400;
+    const collideR = dense ? 42 : 50;
 
+    const simulation = d3.forceSimulation<GraphNode>(filteredNodes)
+      .force('link', d3.forceLink<GraphNode, GraphLink>(filteredLinks).id((d) => d.id).distance(linkDistance))
+      .force('charge', d3.forceManyBody().strength(chargeStrength))
+      .force('center', d3.forceCenter((dimensions.width + reservedLeftWidth) / 2, dimensions.height / 2))
+      .force('collision', d3.forceCollide().radius(collideR))
+      .force('x', d3.forceX((dimensions.width + reservedLeftWidth) / 2).strength(dense ? 0.14 : 0.1))
+      .force('y', d3.forceY(dimensions.height / 2).strength(dense ? 0.14 : 0.1));
+
+    simulation.velocityDecay(dense ? 0.42 : 0.4);
     simulation.alpha(1).restart();
 
     const g = svg.append('g');
@@ -962,7 +988,7 @@ export default function FolkloreGraph({ onOpenQjlSection, month }: FolkloreGraph
   return (
     <div
       ref={containerRef}
-      className="relative w-full h-[760px] bg-white/50 rounded-[32px] overflow-hidden border border-ink/10 shadow-inner"
+      className="relative w-full h-full min-h-[260px] bg-white/50 rounded-[24px] sm:rounded-[32px] overflow-hidden border border-ink/10 shadow-inner"
     >
       <svg ref={svgRef} width="100%" height="100%" className="cursor-move" />
 
@@ -995,17 +1021,19 @@ export default function FolkloreGraph({ onOpenQjlSection, month }: FolkloreGraph
       >
         <button
           type="button"
-          onMouseDown={(e) => {
+          onPointerDown={(e) => {
+            if (e.button !== 0 && e.pointerType === 'mouse') return;
             e.preventDefault();
             controlsDragRef.current = {
               mx: e.clientX,
               my: e.clientY,
               x: controlsPos.x,
               y: controlsPos.y,
+              pointerId: e.pointerId,
             };
           }}
-          className="w-full rounded-lg border border-ink/10 bg-white/55 py-1 text-[11px] font-semibold text-ink/65 cursor-move backdrop-blur-md"
-          title="按住拖动控制卡"
+          className="w-full touch-none rounded-lg border border-ink/10 bg-white/55 py-1 text-[11px] font-semibold text-ink/65 cursor-move backdrop-blur-md select-none"
+          title="按住拖动控制卡（支持触摸）"
         >
           拖动控件
         </button>

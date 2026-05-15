@@ -436,7 +436,7 @@
       "type": "source",
       "description": "记录立春迎春与摸春牛风俗。",
       "meta": {
-        "sectionId": "qjl-xing-chun",
+        "sectionId": "卷一-正月__正月__行春",
         "quote": "立春前一日，官府迎春，民间相率观之。"
       }
     },
@@ -446,7 +446,7 @@
       "type": "source",
       "description": "记录四月十四日轧神仙盛况。",
       "meta": {
-        "sectionId": "qjl-zha-shen-xian",
+        "sectionId": "卷四-四月__四月__轧神仙",
         "quote": "四月十四日，倾城往观，谓之轧神仙。"
       }
     },
@@ -456,7 +456,7 @@
       "type": "source",
       "description": "记录端午竞渡与避邪相关习俗。",
       "meta": {
-        "sectionId": "qjl-duan-wu",
+        "sectionId": "卷五-五月__五月__划龙船-烟囱洞",
         "quote": "五月五日，竞渡于湖港，家家悬艾。"
       }
     },
@@ -466,7 +466,7 @@
       "type": "source",
       "description": "记录中秋赏月与团圆饮食习俗。",
       "meta": {
-        "sectionId": "qjl-zhong-qiu",
+        "sectionId": "卷八-八月__八月__月饼",
         "quote": "中秋夜，士女并出，登临赏月。"
       }
     },
@@ -476,7 +476,7 @@
       "type": "source",
       "description": "记录正月十五灯市与夜游。",
       "meta": {
-        "sectionId": "qjl-yuan-xiao",
+        "sectionId": "卷一-正月__正月__闹元宵",
         "quote": "正月十五夜，张灯为市，士女游观。"
       }
     },
@@ -486,7 +486,7 @@
       "type": "source",
       "description": "记录清明祭扫与插柳等俗。",
       "meta": {
-        "sectionId": "qjl-qing-ming",
+        "sectionId": "卷三-三月__三月__上坟",
         "quote": "清明日，士庶家皆上冢，插柳于门。"
       }
     },
@@ -496,7 +496,7 @@
       "type": "source",
       "description": "记录花朝与赏红之俗。",
       "meta": {
-        "sectionId": "qjl-bai-hua-sheng-ri",
+        "sectionId": "卷二-二月__二月__百花生日",
         "quote": "二月十二日为百花生日，闺中女郎剪五色彩缯粘花枝上，谓之赏红。"
       }
     },
@@ -506,7 +506,7 @@
       "type": "source",
       "description": "记录元夕妇女走桥却病之俗。",
       "meta": {
-        "sectionId": "qjl-zou-san-qiao",
+        "sectionId": "卷一-正月__正月__走三桥",
         "quote": "元夕，妇女相率宵行，以却疾病，曰走三桥。"
       }
     },
@@ -516,7 +516,7 @@
       "type": "source",
       "description": "记录六月廿四观荷之盛。",
       "meta": {
-        "sectionId": "qjl-he-hua-dang",
+        "sectionId": "卷六-六月__六月__荷花荡",
         "quote": "六月二十四日，画船箫鼓，竞集葑门外荷花荡。"
       }
     },
@@ -526,7 +526,7 @@
       "type": "source",
       "description": "记录乞巧与陈瓜果之俗。",
       "meta": {
-        "sectionId": "qjl-qi-xi",
+        "sectionId": "卷七-七月__七月__巧果",
         "quote": "七月初七，妇女陈瓜果于庭，穿针乞巧。"
       }
     },
@@ -536,7 +536,7 @@
       "type": "source",
       "description": "记录登高、佩萸、食糕之俗。",
       "meta": {
-        "sectionId": "qjl-chong-yang",
+        "sectionId": "卷九-九月__九月__登高",
         "quote": "九日为重阳节，登高饮菊花酒，食重阳糕。"
       }
     },
@@ -546,7 +546,7 @@
       "type": "source",
       "description": "记录冬至夜家宴与「冬至大如年」之谚。",
       "meta": {
-        "sectionId": "qjl-dong-zhi",
+        "sectionId": "卷十一-十一月__十一月__冬至大如年",
         "quote": "冬至夜，人家各置酒宴，谚云冬至大如年。"
       }
     },
@@ -556,7 +556,7 @@
       "type": "source",
       "description": "记录腊八粥与馈遗之俗。",
       "meta": {
-        "sectionId": "qjl-la-ba",
+        "sectionId": "卷十二-十二月__十二月__腊八粥",
         "quote": "腊月初八，僧尼以杂果煮粥，名曰腊八粥。"
       }
     },
@@ -566,7 +566,7 @@
       "type": "source",
       "description": "记录辞岁、守岁与祀先。",
       "meta": {
-        "sectionId": "qjl-chu-xi",
+        "sectionId": "卷十二-十二月__十二月__小年夜大年夜",
         "quote": "除夕，家家祀先，长幼聚饮，谓之守岁。"
       }
     },

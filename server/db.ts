@@ -427,15 +427,28 @@ export async function countAuthUsersByRole(role: AuthUserRow['role']): Promise<n
 
 export async function upsertAuthUser(username: string, passwordPlain: string, role: AuthUserRow['role']): Promise<void> {
   const hash = await bcrypt.hash(passwordPlain, 10);
-  await pool.query(
-    `INSERT INTO auth_users (username, password_hash, role, created_at, updated_at)
-     VALUES ($1, $2, $3, NOW(), NOW())
-     ON CONFLICT (username) DO UPDATE SET
-       password_hash = EXCLUDED.password_hash,
-       role = EXCLUDED.role,
-       updated_at = EXCLUDED.updated_at`,
-    [username.trim(), hash, role]
+  const u = username.trim();
+  const updated = await pool.query(
+    `UPDATE auth_users SET password_hash = $2, role = $3, updated_at = NOW() WHERE username = $1`,
+    [u, hash, role]
   );
+  if (updated.rowCount && updated.rowCount > 0) return;
+  try {
+    await pool.query(
+      `INSERT INTO auth_users (username, password_hash, role, created_at, updated_at) VALUES ($1, $2, $3, NOW(), NOW())`,
+      [u, hash, role]
+    );
+  } catch (e: unknown) {
+    const code = e && typeof e === 'object' && 'code' in e ? String((e as { code: string }).code) : '';
+    if (code === '23505') {
+      await pool.query(
+        `UPDATE auth_users SET password_hash = $2, role = $3, updated_at = NOW() WHERE username = $1`,
+        [u, hash, role]
+      );
+      return;
+    }
+    throw e;
+  }
 }
 
 export async function listAuthUsers(): Promise<Array<{ id: number; username: string; role: AuthUserRow['role']; createdAt: string; updatedAt: string }>> {
@@ -629,6 +642,66 @@ export async function deleteChatSessionById(id: string): Promise<void> {
   await pool.query('DELETE FROM chat_sessions WHERE id = $1', [id]);
 }
 
+export interface FolkloreGraphDraftRow {
+  id: number;
+  title: string;
+  payloadJson: string;
+  createdByUsername: string;
+  createdAt: string;
+}
+
+export async function listFolkloreGraphDrafts(limit = 50): Promise<FolkloreGraphDraftRow[]> {
+  const lim = Math.min(Math.max(limit, 1), 200);
+  const res = await pool.query(
+    `SELECT id, title, payload_json AS "payloadJson", created_by_username AS "createdByUsername", created_at AS "createdAt"
+     FROM folklore_graph_draft ORDER BY id DESC LIMIT $1`,
+    [lim]
+  );
+  return res.rows as FolkloreGraphDraftRow[];
+}
+
+export async function insertFolkloreGraphDraft(payload: {
+  title: string;
+  payloadJson: string;
+  createdByUsername: string;
+}): Promise<number> {
+  const res = await pool.query(
+    `INSERT INTO folklore_graph_draft (title, payload_json, created_by_username, created_at)
+     VALUES ($1, $2, $3, NOW()) RETURNING id`,
+    [payload.title.trim().slice(0, 200), payload.payloadJson, payload.createdByUsername]
+  );
+  return res.rows[0].id as number;
+}
+
+export async function getFolkloreGraphDraftById(id: number): Promise<FolkloreGraphDraftRow | null> {
+  const res = await pool.query(
+    `SELECT id, title, payload_json AS "payloadJson", created_by_username AS "createdByUsername", created_at AS "createdAt"
+     FROM folklore_graph_draft WHERE id = $1`,
+    [id]
+  );
+  const row = res.rows[0] as FolkloreGraphDraftRow | undefined;
+  return row ?? null;
+}
+
+export async function deleteFolkloreGraphDraftById(id: number): Promise<boolean> {
+  const res = await pool.query('DELETE FROM folklore_graph_draft WHERE id = $1', [id]);
+  return (res.rowCount ?? 0) > 0;
+}
+
+export async function insertFolkloreGraphPublishLog(payload: {
+  contentSha256: string;
+  entityCount: number;
+  relationCount: number;
+  note: string | null;
+  actorUsername: string;
+}): Promise<void> {
+  await pool.query(
+    `INSERT INTO folklore_graph_publish_log (content_sha256, entity_count, relation_count, note, actor_username, created_at)
+     VALUES ($1, $2, $3, $4, $5, NOW())`,
+    [payload.contentSha256, payload.entityCount, payload.relationCount, payload.note, payload.actorUsername]
+  );
+}
+
 export async function initDb(): Promise<void> {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS picture_books (
@@ -756,6 +829,28 @@ export async function initDb(): Promise<void> {
       feedback_json TEXT NOT NULL DEFAULT '{}',
       created_at TIMESTAMPTZ DEFAULT NOW(),
       updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS folklore_graph_draft (
+      id SERIAL PRIMARY KEY,
+      title TEXT NOT NULL,
+      payload_json TEXT NOT NULL,
+      created_by_username TEXT NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS folklore_graph_publish_log (
+      id SERIAL PRIMARY KEY,
+      content_sha256 TEXT NOT NULL,
+      entity_count INTEGER NOT NULL DEFAULT 0,
+      relation_count INTEGER NOT NULL DEFAULT 0,
+      note TEXT,
+      actor_username TEXT NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
     );
   `);
 

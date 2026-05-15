@@ -143,3 +143,81 @@ export function searchSectionsSoft(message: string, limit = 6): QingJiaLuSection
   return filtered.map((x) => x.section);
 }
 
+/** 时令卡片习俗名 → 当月原文小节（标题精确/包含匹配，取一条最贴切） */
+export function findSectionForMonthCustom(month: string, customName: string): QingJiaLuSection | null {
+  const list = getSectionsByMonth(month);
+  const n = customName.trim();
+  if (!n || !list.length) return null;
+  const exact = list.find((s) => s.title.trim() === n);
+  if (exact) return exact;
+  const cand = list.filter((s) => {
+    const t = s.title.trim();
+    return t.includes(n) || n.includes(t);
+  });
+  if (!cand.length) return null;
+  cand.sort((a, b) => a.title.length - b.title.length || a.title.localeCompare(b.title, 'zh'));
+  return cand[0];
+}
+
+/** 与 ground-topic 一致：软检索命中或全文含用户短语即视为有据 */
+export function isTopicGroundedInQjl(topic: string): boolean {
+  const t = topic.trim();
+  if (!t) return false;
+  if (searchSectionsSoft(t, 1).length > 0) return true;
+  const key = t.toLowerCase();
+  for (const s of getAllSections()) {
+    const hay = `${s.title}\n${s.content}`.toLowerCase();
+    if (hay.includes(key)) return true;
+  }
+  return false;
+}
+
+/**
+ * 灵感输入：软检索优先，再补足字面命中，去重后至多 max 条，供绘本剧本综合参考。
+ */
+export function collectSectionsForPictureBookTopic(topic: string, max = 6): QingJiaLuSection[] {
+  const t = topic.trim();
+  if (!t) return [];
+  const seen = new Set<string>();
+  const out: QingJiaLuSection[] = [];
+  for (const s of searchSectionsSoft(t, max)) {
+    if (seen.has(s.id)) continue;
+    seen.add(s.id);
+    out.push(s);
+  }
+  if (out.length >= max) return out.slice(0, max);
+  const key = t.toLowerCase();
+  for (const s of getAllSections()) {
+    if (seen.has(s.id)) continue;
+    const hay = `${s.title}\n${s.content}`.toLowerCase();
+    if (!hay.includes(key)) continue;
+    out.push(s);
+    seen.add(s.id);
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
+const PICTURE_BOOK_REF_MAX_CHARS = 3200;
+
+/** 拼入绘本剧本 prompt 的《清嘉录》参考块 */
+export function formatQjlSectionsForPictureBookPrompt(
+  sections: QingJiaLuSection[],
+  mode: 'single_card' | 'multi_inspiration',
+): string {
+  if (!sections.length) return '';
+  const head =
+    mode === 'single_card'
+      ? '【单条原文锚定】以下为该习俗在《清嘉录》中的正文。三页绘本的情节、专有名词与禳解/活动方式须与此一致；禁止改写成与此矛盾的泛化主题（例如把「注夏」偷换为一般夏日纳凉消暑，而忽略参考文中的茶饮、饮食禳解等）。\n\n'
+      : '【多条原文综合】以下各节与您的灵感在《清嘉录》原文中均有依据。请通读后在三页故事中有机融合或分承体现各条要点；禁止只选其中最泛化的一条，而用与参考无关的套路敷衍带过。\n\n';
+
+  const blocks = sections.map((s, i) => {
+    let body = (s.content || '').trim();
+    if (body.length > PICTURE_BOOK_REF_MAX_CHARS) {
+      body = `${body.slice(0, PICTURE_BOOK_REF_MAX_CHARS)}\n…（以下略）`;
+    }
+    return `—— 第 ${i + 1} 条 ——\n卷「${s.juan}」·${s.month ?? ''}·「${s.title}」（小节 id：${s.id}）\n${body}`;
+  });
+  return head + blocks.join('\n\n');
+}
+

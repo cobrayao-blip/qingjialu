@@ -306,7 +306,7 @@ export function LLMConfigModal({ open, onClose, adminToken }: LLMConfigModalProp
           initial={{ opacity: 0, scale: 0.96 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.96 }}
-          className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-white rounded-[32px] card-shadow border border-ink/10"
+          className="relative w-full max-w-2xl max-h-[90dvh] overflow-y-auto overscroll-contain bg-white rounded-[32px] card-shadow border border-ink/10"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="sticky top-0 bg-white border-b border-ink/10 rounded-t-[32px] z-10">

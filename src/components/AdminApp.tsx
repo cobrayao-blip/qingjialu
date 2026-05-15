@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
+import type { FolkloreGraphDraftRow } from '../services/api';
 import { motion } from 'motion/react';
 import { Settings } from 'lucide-react';
 import { downloadGeoExport, type GeoPlace, type AuthUser, type GeoReviewRecord } from '../services/api';
+import { LLMConfigModal } from './LLMConfigView';
+import { UserLoginForm } from './UserLoginForm';
 
 /** 用户管理中可创建与调整的角色（不含 admin） */
 type ManagedUserRole = 'viewer' | 'editor';
-import { LLMConfigModal } from './LLMConfigView';
-import { UserLoginForm } from './UserLoginForm';
 
 type ReviewStatus = 'pending' | 'reviewed' | 'locked';
 const normalizePlaceKey = (v: string) => (v || '').replace(/\s+/g, '').toLowerCase();
@@ -54,10 +55,23 @@ interface AdminAppProps {
   onReviewNoteDraftChange: (placeKey: string, note: string) => void;
   onRefreshReviewQueue: () => Promise<void>;
   onReviewStatus: (place: GeoPlace, status: ReviewStatus, placeOverride?: GeoPlace) => Promise<void>;
+  graphAdminLog: string;
+  graphAdminBusy: boolean;
+  folkloreGraphDrafts: FolkloreGraphDraftRow[];
+  onRefreshFolkloreGraphDrafts: () => Promise<void>;
+  onFolkloreGraphReload: () => Promise<void>;
+  onFolkloreGraphMergeDryRun: () => Promise<void>;
+  onFolkloreGraphMergeApply: () => Promise<void>;
+  onSaveFolkloreGraphDraft: (title: string) => Promise<void>;
+  onPublishFolkloreGraphDraft: (id: number) => Promise<void>;
+  onDeleteFolkloreGraphDraft: (id: number) => Promise<void>;
 }
 
 export default function AdminApp(props: AdminAppProps) {
-  const [activeSection, setActiveSection] = useState<'overview' | 'review' | 'rebuild' | 'users' | 'audit'>('overview');
+  const [activeSection, setActiveSection] = useState<
+    'overview' | 'review' | 'rebuild' | 'users' | 'audit' | 'folkloreGraph'
+  >('overview');
+  const [folkloreDraftTitle, setFolkloreDraftTitle] = useState('');
   const [llmConfigOpen, setLlmConfigOpen] = useState(false);
   const [passwordDialog, setPasswordDialog] = useState<{ id: number; username: string } | null>(null);
   const [passwordForm, setPasswordForm] = useState({ next: '', confirm: '' });
@@ -69,6 +83,12 @@ export default function AdminApp(props: AdminAppProps) {
       setActiveSection('overview');
     }
   }, [props.adminRole, activeSection]);
+
+  useEffect(() => {
+    if (activeSection === 'folkloreGraph') {
+      void props.onRefreshFolkloreGraphDrafts();
+    }
+  }, [activeSection, props.onRefreshFolkloreGraphDrafts]);
   const [editReviewKey, setEditReviewKey] = useState<string | null>(null);
   const [reviewPlaceDraft, setReviewPlaceDraft] = useState<Record<string, GeoPlace>>({});
   const loggedIn = Boolean(props.geoAdminToken.trim());
@@ -87,7 +107,7 @@ export default function AdminApp(props: AdminAppProps) {
   }
 
   return (
-    <motion.div key="admin" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-4 min-h-[72vh]">
+    <motion.div key="admin" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-4 min-h-[min(72vh,100dvh)] pb-[env(safe-area-inset-bottom)]">
       <aside className="bg-white rounded-[24px] border border-ink/10 p-4 space-y-3">
         <div className="pb-3 border-b border-ink/10">
           <h2 className="serif text-2xl font-bold text-olive">地理治理后台</h2>
@@ -98,6 +118,7 @@ export default function AdminApp(props: AdminAppProps) {
             ['overview', '概览'],
             ['review', '校审'],
             ['rebuild', '重建与Diff'],
+            ['folkloreGraph', '民俗图谱'],
             ...(props.adminRole === 'admin' ? ([['users', '用户管理']] as const) : []),
             ['audit', '审计日志'],
           ] as const
@@ -575,6 +596,118 @@ export default function AdminApp(props: AdminAppProps) {
                 {props.authUsers.length === 0 && <p className="text-sm opacity-60">暂无用户，请先创建账号。</p>}
               </div>
             )}
+          </div>
+        )}
+
+        {activeSection === 'folkloreGraph' && (
+          <div className="space-y-4">
+            <div className="bg-white rounded-[20px] border border-ink/10 p-4 space-y-3">
+              <h3 className="font-semibold text-ink">民俗知识图谱</h3>
+              <p className="text-xs text-ink/65 leading-relaxed">
+                将《清嘉录》原文库中尚未进入图谱的小节，批量补成「时令 → 活动 → 文献」骨架并写入{' '}
+                <code className="text-[11px] bg-ink/5 px-1 rounded">server/data/folklore-graph.v1.json</code>。
+                建议先「合并预览」，必要时「保存草稿」，再执行「合并写入」。修改文件后可用「热重载」使 API 立即读新数据。
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={props.graphAdminBusy || props.geoAdminBusy}
+                  className="px-3 py-2 rounded-lg border border-ink/20 text-sm disabled:opacity-50"
+                  onClick={() => void props.onFolkloreGraphReload()}
+                >
+                  热重载 JSON
+                </button>
+                <button
+                  type="button"
+                  disabled={props.graphAdminBusy || props.geoAdminBusy}
+                  className="px-3 py-2 rounded-lg border border-ink/20 text-sm disabled:opacity-50"
+                  onClick={() => void props.onFolkloreGraphMergeDryRun()}
+                >
+                  合并预览
+                </button>
+                <button
+                  type="button"
+                  disabled={props.graphAdminBusy || props.geoAdminBusy}
+                  className="px-3 py-2 rounded-lg bg-vermilion text-white text-sm disabled:opacity-50"
+                  onClick={() => void props.onFolkloreGraphMergeApply()}
+                >
+                  合并写入
+                </button>
+                <button
+                  type="button"
+                  disabled={props.graphAdminBusy || props.geoAdminBusy}
+                  className="px-3 py-2 rounded-lg border border-ink/20 text-sm disabled:opacity-50"
+                  onClick={() => void props.onRefreshFolkloreGraphDrafts()}
+                >
+                  刷新草稿列表
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-2 items-end">
+                <div className="min-w-[200px] flex-1">
+                  <label className="block text-[11px] font-medium text-ink/70 mb-1">保存草稿标题</label>
+                  <input
+                    type="text"
+                    value={folkloreDraftTitle}
+                    onChange={(e) => setFolkloreDraftTitle(e.target.value)}
+                    placeholder="例如：合并前备份 2026-05-11"
+                    className="w-full px-3 py-2 rounded-lg border border-ink/15 text-sm"
+                  />
+                </div>
+                <button
+                  type="button"
+                  disabled={props.graphAdminBusy || props.geoAdminBusy}
+                  className="px-3 py-2 rounded-lg bg-olive text-white text-sm disabled:opacity-50"
+                  onClick={() => void props.onSaveFolkloreGraphDraft(folkloreDraftTitle)}
+                >
+                  保存当前线上图为草稿
+                </button>
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold text-ink mb-2">草稿</h4>
+                {props.folkloreGraphDrafts.length === 0 ? (
+                  <p className="text-xs opacity-60">暂无草稿</p>
+                ) : (
+                  <ul className="space-y-2 text-sm">
+                    {props.folkloreGraphDrafts.map((d) => (
+                      <li
+                        key={`fg-draft-${d.id}`}
+                        className="flex flex-wrap gap-2 items-center justify-between border border-ink/10 rounded-lg px-3 py-2"
+                      >
+                        <div>
+                          <span className="font-medium text-ink">#{d.id}</span>
+                          <span className="ml-2">{d.title}</span>
+                          <span className="ml-2 text-[11px] opacity-55">{d.createdByUsername}</span>
+                        </div>
+                        <div className="flex gap-1">
+                          <button
+                            type="button"
+                            disabled={props.graphAdminBusy || props.geoAdminBusy}
+                            className="px-2 py-1 rounded border border-olive text-olive text-xs disabled:opacity-50"
+                            onClick={() => void props.onPublishFolkloreGraphDraft(d.id)}
+                          >
+                            发布
+                          </button>
+                          <button
+                            type="button"
+                            disabled={props.graphAdminBusy || props.geoAdminBusy}
+                            className="px-2 py-1 rounded border border-ink/20 text-xs disabled:opacity-50"
+                            onClick={() => void props.onDeleteFolkloreGraphDraft(d.id)}
+                          >
+                            删除
+                          </button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+            <div className="bg-white rounded-[20px] border border-ink/10 p-4">
+              <h4 className="text-sm font-semibold text-ink mb-2">操作输出</h4>
+              <pre className="text-[11px] bg-ink/5 p-2 rounded-lg overflow-x-auto max-h-96 whitespace-pre-wrap">
+                {props.graphAdminLog || '执行上方操作后在此查看 JSON 结果'}
+              </pre>
+            </div>
           </div>
         )}
 

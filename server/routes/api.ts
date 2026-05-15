@@ -1,4 +1,5 @@
 import { Router, type Request, type Response } from 'express';
+import { sendJsonSafe } from '../sendJsonSafe';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { requireDashScope, getDashScopeApiKeyText, getDashScopeApiKeyImage, getDashScopeApiKeyTts } from '../llmConfig';
@@ -45,8 +46,25 @@ import {
   deleteChatSessionById,
   getQjlTranslationCache,
   saveQjlTranslationCache,
+  listFolkloreGraphDrafts,
+  insertFolkloreGraphDraft,
+  getFolkloreGraphDraftById,
+  deleteFolkloreGraphDraftById,
+  insertFolkloreGraphPublishLog,
 } from '../db';
-import { getSectionsByMonth, getSectionById, getSectionSummariesByMonth, getAvailableMonths, searchSectionsSoft, getAllSections } from '../qingjialuSource';
+import {
+  getSectionsByMonth,
+  getSectionById,
+  getSectionSummariesByMonth,
+  getAvailableMonths,
+  searchSectionsSoft,
+  getAllSections,
+  findSectionForMonthCustom,
+  collectSectionsForPictureBookTopic,
+  isTopicGroundedInQjl,
+  formatQjlSectionsForPictureBookPrompt,
+  type QingJiaLuSection,
+} from '../qingjialuSource';
 import { EdgeTTS } from 'node-edge-tts';
 import { tmpdir } from 'os';
 import { randomUUID, createHash } from 'crypto';
@@ -69,7 +87,15 @@ import {
   sliceCanonicalGraphByMonthLabel,
   listSourceCitationsForEntity,
 } from '../../src/graph/folkloreGraphModel';
-import { getFolkloreEvidenceStats, getFolkloreGraph } from '../services/folkloreGraphRepository';
+import {
+  getFolkloreEvidenceStats,
+  getFolkloreGraph,
+  getFolkloreGraphMeta,
+  reloadFolkloreGraphCache,
+  writeFolkloreGraphFile,
+} from '../services/folkloreGraphRepository';
+import { mergeQjlSectionsIntoGraph } from '../services/folkloreGraphMerge';
+import type { CanonicalGraph } from '../../src/graph/folkloreGraphModel';
 
 const router = Router();
 
@@ -176,7 +202,7 @@ router.post('/auth/login', async (req, res) => {
     const { username, password } = (req.body || {}) as { username?: string; password?: string };
     const u = typeof username === 'string' ? username.trim() : '';
     const p = typeof password === 'string' ? password : '';
-    if (!u || !p) return res.status(400).json({ error: '请提供 username 与 password' });
+    if (!u || !p) return sendJsonSafe(res, 400, { error: '请提供 username 与 password' });
 
     // 若配置了环境管理员，并且本次登录命中该用户名，则在登录时保证该账号存在且为 admin。
     // 这样在重启后或库迁移后不会出现“环境里改了管理员用户名，但库里未同步”的困扰。
@@ -185,14 +211,67 @@ router.post('/auth/login', async (req, res) => {
     }
 
     const user = await getAuthUserByUsername(u);
-    if (!user) return res.status(401).json({ error: '账号或密码错误' });
-    const ok = await bcrypt.compare(p, user.passwordHash);
-    if (!ok) return res.status(401).json({ error: '账号或密码错误' });
-    const token = signAuthToken({ sub: String(user.id), username: user.username, role: user.role });
-    res.json({ token, user: { id: user.id, username: user.username, role: user.role } });
+    if (!user) return sendJsonSafe(res, 401, { error: '账号或密码错误' });
+    let ok = false;
+    try {
+      ok =
+        typeof user.passwordHash === 'string' &&
+        user.passwordHash.length > 0 &&
+        (await bcrypt.compare(p, user.passwordHash));
+    } catch (bcryptErr) {
+      console.error('auth login bcrypt.compare error:', bcryptErr);
+      return sendJsonSafe(res, 401, { error: '账号或密码错误' });
+    }
+    if (!ok) return sendJsonSafe(res, 401, { error: '账号或密码错误' });
+    const role = user.role;
+    if (role !== 'admin' && role !== 'editor' && role !== 'viewer') {
+      console.error('auth login: invalid role in DB', { username: user.username, role });
+      return sendJsonSafe(res, 500, {
+        error: '登录失败',
+        ...(env.NODE_ENV !== 'production'
+          ? { detail: `数据库中账号角色无效: ${String(role)}，应为 admin / editor / viewer` }
+          : {}),
+      });
+    }
+    let token: string;
+    try {
+      token = signAuthToken({ sub: String(user.id), username: user.username, role });
+    } catch (signErr) {
+      console.error('auth login jwt.sign error:', signErr);
+      return sendJsonSafe(res, 500, {
+        error: '登录失败',
+        ...(env.NODE_ENV !== 'production'
+          ? {
+              detail: signErr instanceof Error ? signErr.message : String(signErr),
+              hint: '常见原因：JWT_SECRET 为空或无效。检查 .env 中 JWT_SECRET 是否为非空字符串。',
+            }
+          : {}),
+      });
+    }
+    const uid = Number(user.id);
+    return sendJsonSafe(res, 200, {
+      token,
+      user: { id: Number.isFinite(uid) ? uid : user.id, username: user.username, role },
+    });
   } catch (e) {
     console.error('auth login error:', e);
-    res.status(500).json({ error: '登录失败' });
+    const isDev = env.NODE_ENV !== 'production';
+    const msg = e instanceof Error ? e.message : String(e);
+    const pgCode =
+      e && typeof e === 'object' && 'code' in e ? String((e as { code: unknown }).code) : '';
+    return sendJsonSafe(res, 500, {
+      error: '登录失败',
+      ...(isDev
+        ? {
+            detail: msg,
+            ...(pgCode ? { pgCode } : {}),
+            hint:
+              pgCode === 'ECONNREFUSED' || msg.includes('ECONNREFUSED')
+                ? '无法连接 PostgreSQL：Docker 开发请确认 api 使用 PG_HOST=db 且 db 容器已启动；宿主机直连请确认本机 Postgres 已监听对应端口。'
+                : undefined,
+          }
+        : {}),
+    });
   }
 });
 
@@ -1118,13 +1197,22 @@ router.get('/geo/places/:id', (req, res) => {
   }
 });
 
+function parseCanonicalGraphPayload(raw: unknown): CanonicalGraph | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const o = raw as { entities?: unknown; relations?: unknown };
+  if (!Array.isArray(o.entities) || !Array.isArray(o.relations)) return null;
+  return raw as CanonicalGraph;
+}
+
 // ---------- 民俗知识图谱（只读 canonical graph）----------
 router.get('/graph', (_req, res) => {
   try {
     const g = getFolkloreGraph();
     const evidence = getFolkloreEvidenceStats(g);
+    const meta = getFolkloreGraphMeta();
     res.json({
       version: 1,
+      meta,
       evidence,
       entities: g.entities,
       relations: g.relations,
@@ -1135,12 +1223,186 @@ router.get('/graph', (_req, res) => {
   }
 });
 
+// POST /api/graph/reload — 重新从磁盘加载图谱 JSON（admin/editor，用于更新数据后免重启）
+router.post('/graph/reload', async (req, res) => {
+  try {
+    const auth = requireRole(req, res, ['admin', 'editor']);
+    if (!auth) return;
+    const meta = reloadFolkloreGraphCache();
+    const g = getFolkloreGraph();
+    const evidence = getFolkloreEvidenceStats(g);
+    await writeAudit(auth, 'folklore.graph.reload', 'folklore_graph', meta.contentSha256.slice(0, 16), {
+      contentSha256: meta.contentSha256,
+      fileMtimeMs: meta.fileMtimeMs,
+      entityCount: meta.entityCount,
+      relationCount: meta.relationCount,
+    });
+    res.json({ ok: true, meta, evidence });
+  } catch (e) {
+    console.error('Folklore graph reload error:', e);
+    res.status(500).json({ error: e instanceof Error ? e.message : '图谱热重载失败' });
+  }
+});
+
+// POST /api/graph/admin/merge-from-qjl — 按《清嘉录》小节补全缺口（dryRun 仅统计）
+router.post('/graph/admin/merge-from-qjl', async (req, res) => {
+  try {
+    const auth = requireRole(req, res, ['admin', 'editor']);
+    if (!auth) return;
+    const dryRun = Boolean((req.body as { dryRun?: boolean } | undefined)?.dryRun);
+    const base = getFolkloreGraph();
+    const sections = getAllSections();
+    const { graph: merged, addedPractices, skippedNoMonth, skippedNoTimeNode } = mergeQjlSectionsIntoGraph(
+      base,
+      sections
+    );
+    const evidenceMerged = getFolkloreEvidenceStats(merged);
+    if (dryRun) {
+      res.json({
+        dryRun: true,
+        sectionCount: sections.length,
+        addedPractices,
+        skippedNoMonth,
+        skippedNoTimeNode,
+        entityCount: merged.entities.length,
+        relationCount: merged.relations.length,
+        evidence: evidenceMerged,
+      });
+      return;
+    }
+    const meta = writeFolkloreGraphFile(merged);
+    const evidence = getFolkloreEvidenceStats(getFolkloreGraph());
+    await writeAudit(auth, 'folklore.graph.mergeFromQjl', 'folklore_graph', meta.contentSha256.slice(0, 16), {
+      addedPractices,
+      skippedNoMonth,
+      skippedNoTimeNode,
+      contentSha256: meta.contentSha256,
+    });
+    await insertFolkloreGraphPublishLog({
+      contentSha256: meta.contentSha256,
+      entityCount: meta.entityCount,
+      relationCount: meta.relationCount,
+      note: `merge-from-qjl +${addedPractices}`,
+      actorUsername: auth.username,
+    });
+    res.json({
+      ok: true,
+      meta,
+      addedPractices,
+      skippedNoMonth,
+      skippedNoTimeNode,
+      sectionCount: sections.length,
+      evidence,
+    });
+  } catch (e) {
+    console.error('Folklore graph merge-from-qjl error:', e);
+    res.status(500).json({ error: e instanceof Error ? e.message : '图谱合并失败' });
+  }
+});
+
+// GET /api/graph/admin/drafts — 图谱草稿列表
+router.get('/graph/admin/drafts', async (req, res) => {
+  try {
+    const auth = requireRole(req, res, ['admin', 'editor']);
+    if (!auth) return;
+    const drafts = await listFolkloreGraphDrafts(80);
+    res.json({ drafts });
+  } catch (e) {
+    console.error('Folklore graph drafts list error:', e);
+    res.status(500).json({ error: '读取草稿失败' });
+  }
+});
+
+// POST /api/graph/admin/drafts — 保存当前图谱或 body.payload 为草稿
+router.post('/graph/admin/drafts', async (req, res) => {
+  try {
+    const auth = requireRole(req, res, ['admin', 'editor']);
+    if (!auth) return;
+    const body = (req.body || {}) as { title?: string; payload?: unknown };
+    const title = typeof body.title === 'string' ? body.title.trim() : '';
+    if (!title) return res.status(400).json({ error: '请提供 title' });
+    let graph: CanonicalGraph;
+    if (body.payload !== undefined) {
+      const parsed = parseCanonicalGraphPayload(body.payload);
+      if (!parsed) return res.status(400).json({ error: 'payload 不是有效的图谱对象' });
+      graph = parsed;
+    } else {
+      graph = getFolkloreGraph();
+    }
+    const id = await insertFolkloreGraphDraft({
+      title: title.slice(0, 200),
+      payloadJson: JSON.stringify(graph),
+      createdByUsername: auth.username,
+    });
+    res.json({ ok: true, id });
+  } catch (e) {
+    console.error('Folklore graph draft save error:', e);
+    res.status(500).json({ error: '保存草稿失败' });
+  }
+});
+
+// POST /api/graph/admin/publish-draft/:id — 将草稿写回 folklore-graph.v1.json 并热重载
+router.post('/graph/admin/publish-draft/:id', async (req, res) => {
+  try {
+    const auth = requireRole(req, res, ['admin', 'editor']);
+    if (!auth) return;
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id) || id <= 0) return res.status(400).json({ error: '无效草稿 id' });
+    const row = await getFolkloreGraphDraftById(id);
+    if (!row) return res.status(404).json({ error: '草稿不存在' });
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(row.payloadJson) as unknown;
+    } catch {
+      return res.status(400).json({ error: '草稿 JSON 损坏' });
+    }
+    const graph = parseCanonicalGraphPayload(parsed);
+    if (!graph) return res.status(400).json({ error: '草稿不是有效图谱' });
+    const meta = writeFolkloreGraphFile(graph);
+    const evidence = getFolkloreEvidenceStats(getFolkloreGraph());
+    await writeAudit(auth, 'folklore.graph.publishDraft', 'folklore_graph', meta.contentSha256.slice(0, 16), {
+      draftId: id,
+      draftTitle: row.title,
+      contentSha256: meta.contentSha256,
+    });
+    await insertFolkloreGraphPublishLog({
+      contentSha256: meta.contentSha256,
+      entityCount: meta.entityCount,
+      relationCount: meta.relationCount,
+      note: `publish-draft:${id} ${row.title}`,
+      actorUsername: auth.username,
+    });
+    res.json({ ok: true, meta, evidence });
+  } catch (e) {
+    console.error('Folklore graph publish-draft error:', e);
+    res.status(500).json({ error: e instanceof Error ? e.message : '发布草稿失败' });
+  }
+});
+
+// DELETE /api/graph/admin/drafts/:id
+router.delete('/graph/admin/drafts/:id', async (req, res) => {
+  try {
+    const auth = requireRole(req, res, ['admin', 'editor']);
+    if (!auth) return;
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id) || id <= 0) return res.status(400).json({ error: '无效草稿 id' });
+    const ok = await deleteFolkloreGraphDraftById(id);
+    if (!ok) return res.status(404).json({ error: '草稿不存在' });
+    await writeAudit(auth, 'folklore.graph.draft.delete', 'folklore_graph_draft', String(id), {});
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('Folklore graph draft delete error:', e);
+    res.status(500).json({ error: '删除草稿失败' });
+  }
+});
+
 // GET /api/graph/evidence-metrics — 图谱关系证据覆盖率
 router.get('/graph/evidence-metrics', (_req, res) => {
   try {
     const g = getFolkloreGraph();
     const evidence = getFolkloreEvidenceStats(g);
-    res.json({ version: 1, evidence });
+    const meta = getFolkloreGraphMeta();
+    res.json({ version: 1, meta, evidence });
   } catch (e) {
     console.error('Folklore graph evidence metrics GET error:', e);
     res.status(500).json({ error: '读取图谱证据指标失败' });
@@ -1201,8 +1463,10 @@ router.get('/graph/subgraph', (req, res) => {
       );
       return { entities, relations };
     })();
+    const meta = getFolkloreGraphMeta();
     res.json({
       version: 1,
+      meta,
       preset: preset ?? null,
       applied: {
         month: month || null,
@@ -1243,29 +1507,105 @@ router.get('/qjl/sections', (req, res) => {
   }
 });
 
-// GET /api/qjl/search-months?q=闹元宵 — 按关键词反查可能的月份（用于时令左栏搜索）
+/** 为搜索列表生成短引文（保留原文位置，便于用户辨认） */
+function qjlSearchSnippet(section: { title: string; content: string }, needleLower: string): string {
+  const full = `${section.title}\n${section.content}`;
+  const low = full.toLowerCase();
+  const idx = low.indexOf(needleLower);
+  if (idx < 0) {
+    const t = section.title.replace(/\s+/g, ' ').trim();
+    return t.length > 96 ? `${t.slice(0, 96)}…` : t;
+  }
+  const start = Math.max(0, idx - 32);
+  const end = Math.min(full.length, idx + needleLower.length + 80);
+  let s = full.slice(start, end).replace(/\s+/g, ' ');
+  if (start > 0) s = `…${s.trimStart()}`;
+  if (end < full.length) s = `${s.trimEnd()}…`;
+  return s.trim();
+}
+
+// GET /api/qjl/search-months?q=闹元宵 — 按关键词反查月份 + 命中小节列表（时令页展示）
 router.get('/qjl/search-months', (req, res) => {
   try {
     const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
     if (!q) {
-      return res.json({ query: '', months: [] as { month: string; count: number }[] });
+      return res.json({
+        query: '',
+        months: [] as { month: string; count: number }[],
+        hits: [] as { id: string; month: string; title: string; snippet: string }[],
+        totalMatches: 0,
+      });
     }
     const key = q.toLowerCase();
     const byMonth = new Map<string, number>();
+    const hits: { id: string; month: string; title: string; snippet: string }[] = [];
+    const maxHits = 60;
+    let totalMatches = 0;
+
     for (const s of getAllSections()) {
       const month = (s.month || '').trim();
       if (!month) continue;
       const haystack = `${s.title}\n${s.content}`.toLowerCase();
       if (!haystack.includes(key)) continue;
       byMonth.set(month, (byMonth.get(month) ?? 0) + 1);
+      totalMatches += 1;
+      if (hits.length < maxHits) {
+        hits.push({
+          id: s.id,
+          month,
+          title: s.title,
+          snippet: qjlSearchSnippet(s, key),
+        });
+      }
     }
     const months = Array.from(byMonth.entries())
       .map(([month, count]) => ({ month, count }))
       .sort((a, b) => b.count - a.count);
-    res.json({ query: q, months });
+    res.json({ query: q, months, hits, totalMatches });
   } catch (e) {
     console.error('QJL search months error:', e);
     res.status(500).json({ error: '搜索月份失败' });
+  }
+});
+
+// GET /api/qjl/ground-topic?q=… — 判断用户描述是否在《清嘉录》原文中有民俗依据（绘本生成前校验）
+router.get('/qjl/ground-topic', (req, res) => {
+  try {
+    const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+    if (!q) {
+      return res.status(400).json({ error: '请提供 query 参数 q' });
+    }
+    const soft = searchSectionsSoft(q, 8);
+    if (soft.length > 0) {
+      return res.json({
+        grounded: true,
+        mode: 'soft',
+        matchCount: soft.length,
+      });
+    }
+    const key = q.toLowerCase();
+    let literalHits = 0;
+    for (const s of getAllSections()) {
+      const hay = `${s.title}\n${s.content}`.toLowerCase();
+      if (hay.includes(key)) literalHits += 1;
+    }
+    if (literalHits > 0) {
+      return res.json({
+        grounded: true,
+        mode: 'literal',
+        matchCount: literalHits,
+      });
+    }
+    return res.json({
+      grounded: false,
+      mode: 'none',
+      matchCount: 0,
+      message:
+        '未在《清嘉录》原文中找到与这句描述相关的民俗内容。请围绕苏州传统节令、庙会、饮食、游艺等改写，或先用更具体的习俗名（如「轧神仙」「荷花生日」）再试。',
+    });
+  } catch (e) {
+    console.error('QJL ground-topic error:', e);
+    res.status(500).json({ error: '原文校验失败' });
   }
 });
 
@@ -1357,17 +1697,55 @@ router.get('/qjl/sections/:id/translation', async (req, res) => {
   }
 });
 
-// POST /api/picture-book/generate — 根据用户一句话生成绘本（可带民俗参考）
+// POST /api/picture-book/generate — 根据用户一句话生成绘本（服务端组装《清嘉录》参考，防漂移）
 router.post('/picture-book/generate', async (req, res) => {
   try {
-    const { topic, generateImage, folkloreContext } = req.body;
+    const { topic, generateImage, source } = req.body ?? {};
     if (!topic || typeof topic !== 'string') {
       return res.status(400).json({ error: '请提供 topic 字段' });
     }
+    const topicTrim = topic.trim();
+    let folkloreContext: string | undefined;
+
+    const src = source as { type?: string; month?: string; customName?: string; sectionId?: string } | undefined;
+    if (src?.type === 'card' && typeof src.month === 'string' && typeof src.customName === 'string') {
+      const month = src.month.trim();
+      const customName = src.customName.trim();
+      let section: QingJiaLuSection | null = null;
+      const sid = typeof src.sectionId === 'string' ? src.sectionId.trim() : '';
+      if (sid) {
+        const byId = getSectionById(sid);
+        if (byId && (byId.month || '').trim() === month) {
+          section = byId;
+        }
+      }
+      if (!section) {
+        section = findSectionForMonthCustom(month, customName);
+      }
+      if (!section) {
+        return res.status(400).json({
+          error: `未在《清嘉录》「${month}」的原文小节中定位到「${customName}」。请刷新时令卡片或改用灵感输入。`,
+        });
+      }
+      folkloreContext = formatQjlSectionsForPictureBookPrompt([section], 'single_card');
+    } else {
+      if (!isTopicGroundedInQjl(topicTrim)) {
+        return res.status(400).json({
+          error:
+            '未在《清嘉录》原文中找到与该描述相关的民俗内容。请改写为书中可能出现的节令、习俗名或更具体的苏州民俗后再试。',
+        });
+      }
+      const sections = collectSectionsForPictureBookTopic(topicTrim, 6);
+      if (!sections.length) {
+        return res.status(400).json({ error: '无法在原文中聚合到可用的参考条目，请改写关键词后重试。' });
+      }
+      folkloreContext = formatQjlSectionsForPictureBookPrompt(sections, 'multi_inspiration');
+    }
+
     const book = await generatePictureBook({
-      topic: topic.trim(),
+      topic: topicTrim,
       generateImage: generateImage !== false,
-      folkloreContext: typeof folkloreContext === 'string' ? folkloreContext : undefined,
+      folkloreContext,
     });
     res.json(book);
   } catch (e) {

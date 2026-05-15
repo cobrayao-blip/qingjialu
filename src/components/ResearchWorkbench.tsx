@@ -27,7 +27,6 @@ type SavedQuery = {
   sortMode: SortMode;
 };
 const QUERY_STORAGE_KEY = 'qingjialu.research.workbench.query.v1';
-const LEGACY_QUERY_STORAGE_KEY = 'qingjialu.research.workbench.query.v1';
 const QUERY_LIST_STORAGE_KEY = 'qingjialu.research.workbench.queries.v1';
 
 const ENTITY_LABEL: Record<EntityType, string> = {
@@ -162,7 +161,7 @@ export default function ResearchWorkbench({ onOpenQjlSection, month }: Props) {
           return;
         }
       }
-      const legacyRaw = localStorage.getItem(LEGACY_QUERY_STORAGE_KEY);
+      const legacyRaw = localStorage.getItem(QUERY_STORAGE_KEY);
       if (legacyRaw) {
         const legacyParsed = JSON.parse(legacyRaw) as Partial<SavedQuery>;
         applySavedQuery(legacyParsed);
@@ -551,8 +550,9 @@ export default function ResearchWorkbench({ onOpenQjlSection, month }: Props) {
   };
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 min-h-[700px]">
-      <aside className="xl:col-span-3 bg-white/80 rounded-2xl border border-ink/10 p-4 space-y-4">
+    <div className="h-full min-h-0 flex flex-col gap-4 overflow-y-auto overscroll-y-contain xl:overflow-hidden xl:grid xl:grid-cols-12 xl:gap-5 xl:grid-rows-[minmax(0,1fr)]">
+      <aside className="flex max-h-[min(52dvh,520px)] min-h-0 flex-col overflow-hidden rounded-2xl border border-ink/10 bg-white/80 xl:col-span-3 xl:max-h-none xl:h-full">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-y-contain p-4 pr-3">
         <div className="text-sm font-bold text-olive flex items-center gap-2"><Filter size={14} />研究筛选</div>
         <select
           value={activeQueryId}
@@ -569,7 +569,7 @@ export default function ResearchWorkbench({ onOpenQjlSection, month }: Props) {
             <option key={q.id} value={q.id}>{q.name}</option>
           ))}
         </select>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button
             type="button"
             onClick={saveCurrentQuery}
@@ -675,10 +675,12 @@ export default function ResearchWorkbench({ onOpenQjlSection, month }: Props) {
 
         <TagFilters title="概念标签" tags={allConceptTags} selected={selectedConceptTags} onToggle={(t) => toggleTag(t, 'concept')} />
         <TagFilters title="感官标签" tags={allExperienceTags} selected={selectedExperienceTags} onToggle={(t) => toggleTag(t, 'experience')} />
+        </div>
       </aside>
 
-      <section className="xl:col-span-5 bg-white/80 rounded-2xl border border-ink/10 p-4 space-y-3">
-        <div className="flex items-center justify-between">
+      <section className="flex max-h-[min(52dvh,560px)] min-h-0 flex-col overflow-hidden rounded-2xl border border-ink/10 bg-white/80 xl:col-span-5 xl:max-h-none xl:h-full">
+        <div className="flex min-h-0 flex-1 flex-col gap-3 p-4 pt-4">
+        <div className="flex shrink-0 items-center justify-between">
           <div className="text-sm font-bold text-olive">检索结果（{filteredEntities.length}）</div>
           <div className="flex items-center gap-2">
             <select
@@ -701,7 +703,7 @@ export default function ResearchWorkbench({ onOpenQjlSection, month }: Props) {
           </div>
         </div>
         {showBasketPanel && (
-          <div className="rounded-xl border border-ink/10 bg-paper/40 p-3 space-y-2">
+          <div className="shrink-0 rounded-xl border border-ink/10 bg-paper/40 p-3 space-y-2">
             <div className="flex items-center justify-between">
               <div className="text-xs font-bold text-ink/60">篮子内容（{basketEntities.length}）</div>
               <div className="flex gap-1.5">
@@ -756,10 +758,10 @@ export default function ResearchWorkbench({ onOpenQjlSection, month }: Props) {
             </div>
           </div>
         )}
-        {loading && <p className="text-sm text-ink/60">加载图谱数据中…</p>}
-        {!loading && error && <p className="text-sm text-vermilion">{error}</p>}
-        {!loading && !error && filteredEntities.length === 0 && <p className="text-sm text-ink/50">暂无匹配结果。</p>}
-        <div className="space-y-2 max-h-[620px] overflow-y-auto pr-1">
+        {loading && <p className="shrink-0 text-sm text-ink/60">加载图谱数据中…</p>}
+        {!loading && error && <p className="shrink-0 text-sm text-vermilion">{error}</p>}
+        {!loading && !error && filteredEntities.length === 0 && <p className="shrink-0 text-sm text-ink/50">暂无匹配结果。</p>}
+        <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-y-contain pr-1">
           {filteredEntities.map((e) => {
             const cites = graph ? listSourceCitationsForEntity(graph, e.id).length : 0;
             const selected = selectedEntity?.id === e.id;
@@ -791,10 +793,12 @@ export default function ResearchWorkbench({ onOpenQjlSection, month }: Props) {
             );
           })}
         </div>
+        </div>
       </section>
 
-      <aside className="xl:col-span-4 bg-white/80 rounded-2xl border border-ink/10 p-4 space-y-4">
-        <div className="flex items-center justify-between">
+      <aside className="flex max-h-[min(60dvh,640px)] min-h-0 flex-col overflow-hidden rounded-2xl border border-ink/10 bg-white/80 xl:col-span-4 xl:max-h-none xl:h-full">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-y-contain p-4 pr-3">
+        <div className="flex shrink-0 items-center justify-between">
           <div className="text-sm font-bold text-olive">证据与导出</div>
           <div className="flex gap-2">
             <button type="button" onClick={() => exportMarkdown()} className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md border border-ink/15 hover:border-olive/30">
@@ -872,7 +876,7 @@ export default function ResearchWorkbench({ onOpenQjlSection, month }: Props) {
             </div>
             <div>
               <div className="text-xs font-bold text-ink/55 mb-1">文献依据（{selectedCitations.length}）</div>
-              <div className="space-y-2 max-h-[280px] overflow-y-auto pr-1">
+              <div className="space-y-2 pr-1">
                 {selectedCitations.length === 0 && <p className="text-xs text-ink/40">暂无可用文献。</p>}
                 {selectedCitations.map((c) => (
                   <div key={c.sourceId} className="rounded-lg border border-ink/10 p-2.5 bg-white">
@@ -897,7 +901,7 @@ export default function ResearchWorkbench({ onOpenQjlSection, month }: Props) {
             </div>
             <div>
               <div className="text-xs font-bold text-ink/55 mb-1">叙事路径</div>
-              <div className="space-y-1.5 max-h-[140px] overflow-y-auto pr-1">
+              <div className="space-y-1.5 pr-1">
                 {selectedNarrativePaths.length === 0 && (
                   <p className="text-xs text-ink/40">当前实体暂无可构成的“活动→概念→体验”路径。</p>
                 )}
@@ -910,6 +914,7 @@ export default function ResearchWorkbench({ onOpenQjlSection, month }: Props) {
             </div>
           </div>
         )}
+        </div>
       </aside>
     </div>
   );
