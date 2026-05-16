@@ -74,6 +74,8 @@ export default function PictureBookView(props?: PictureBookViewProps) {
   const [showMyBooks, setShowMyBooks] = useState(false);
   /** 小屏：「我的绘本」改为全屏底部抽屉，避免挤压主内容 */
   const bookshelfAsOverlay = useMediaQuery('(max-width: 767px)');
+  /** 小屏 / 减少动效：翻页用淡入淡出，避免 3D rotateY 引起整页闪动 */
+  const simplePageFlip = useMediaQuery('(max-width: 767px), (prefers-reduced-motion: reduce)');
   const [isAutoReading, setIsAutoReading] = useState(false);
   const [exportingMp4, setExportingMp4] = useState(false);
   /** 正在重新生成插图的页索引，null 表示空闲 */
@@ -736,12 +738,15 @@ export default function PictureBookView(props?: PictureBookViewProps) {
                       <AnimatePresence mode="wait" initial={false}>
                         <motion.div
                           key={pageIndex}
-                          initial={{ opacity: 0, rotateY: 90, transformOrigin: 'left' }}
-                          animate={{ opacity: 1, rotateY: 0 }}
-                          exit={{ opacity: 0, rotateY: -90 }}
-                          transition={{ duration: FLIP_DURATION_MS / 1000, ease: 'easeInOut' }}
+                          initial={simplePageFlip ? { opacity: 0 } : { opacity: 0, rotateY: 90, transformOrigin: 'left' }}
+                          animate={simplePageFlip ? { opacity: 1 } : { opacity: 1, rotateY: 0 }}
+                          exit={simplePageFlip ? { opacity: 0 } : { opacity: 0, rotateY: -90 }}
+                          transition={{
+                            duration: simplePageFlip ? 0.2 : FLIP_DURATION_MS / 1000,
+                            ease: 'easeInOut',
+                          }}
                           className="flex flex-col md:flex-row gap-8 md:gap-12 items-center"
-                          style={{ perspective: '1000px' }}
+                          style={simplePageFlip ? undefined : { perspective: '1000px' }}
                         >
                           {/* 图片区域：左图 */}
                           <div className="w-full md:w-1/2 relative">

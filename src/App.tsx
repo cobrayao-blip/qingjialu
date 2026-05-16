@@ -38,6 +38,7 @@ import AdminApp from './components/AdminApp';
 import { UserLoginForm } from './components/UserLoginForm';
 import { useAdminController } from './hooks/useAdminController';
 import { useMediaQuery } from './hooks/useMediaQuery';
+import { useVisualViewportInset } from './hooks/useVisualViewportInset';
 import { authFetchHeaders } from './services/api';
 
 function cn(...inputs: ClassValue[]) {
@@ -252,8 +253,8 @@ export default function App() {
   /** 小屏地理卡「原文依据」折叠，减轻拇指滑动距离 */
   const geoViewportNarrow = useMediaQuery('(max-width: 767px)');
   const [geoCiteExpanded, setGeoCiteExpanded] = useState<Record<string, boolean>>({});
-  /** 解析 Tab：虚拟键盘占用高度（visualViewport 与布局视口差值） */
-  const [chatComposerLift, setChatComposerLift] = useState(0);
+  /** 解析 Tab（小屏）：软键盘占位；已节流，勿再对输入区做 translate */
+  const chatComposerInset = useVisualViewportInset(activeTab === 'chat' && geoViewportNarrow);
 
   const admin = useAdminController({ isAdminRoute, selectedMonth });
   const siteReady =
@@ -651,25 +652,6 @@ export default function App() {
 
   useEffect(() => {
     if (activeTab !== 'geo') setGeoCiteExpanded({});
-  }, [activeTab]);
-
-  useEffect(() => {
-    if (activeTab !== 'chat') {
-      setChatComposerLift(0);
-      return;
-    }
-    const vv = window.visualViewport;
-    if (!vv) return;
-    const sync = () => {
-      setChatComposerLift(Math.max(0, window.innerHeight - vv.height - vv.offsetTop));
-    };
-    sync();
-    vv.addEventListener('resize', sync);
-    vv.addEventListener('scroll', sync);
-    return () => {
-      vv.removeEventListener('resize', sync);
-      vv.removeEventListener('scroll', sync);
-    };
   }, [activeTab]);
 
   // 时令 Tab：所有月份统一先拉 API（有 sections 则 grounded），失败再用静态兜底
@@ -1127,7 +1109,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-[100dvh] min-h-screen flex flex-col bg-paper text-ink">
+    <div className="min-h-dvh flex flex-col bg-paper text-ink">
       {/* Header */}
       <header className="border-b border-ink/10 py-4 sm:py-6 px-4 sm:px-8 flex flex-col sm:flex-row justify-between items-center gap-4 pt-[max(1rem,env(safe-area-inset-top))]">
         <div className="flex items-center gap-3">
@@ -1198,13 +1180,14 @@ export default function App() {
 
       {/* Main Content */}
       <main className="flex-1 min-h-0 max-w-7xl mx-auto w-full p-4 sm:p-8 flex flex-col">
-        <AnimatePresence mode="wait">
+        <AnimatePresence initial={false}>
           {!isAdminRoute && activeTab === 'explorer' && (
             <motion.div
               key="explorer"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
+              initial={false}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.12 }}
               className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:gap-8"
             >
               {/* Month Selector：小屏纵向——搜索全宽置顶，月份单独横向滚动 */}
@@ -1268,7 +1251,7 @@ export default function App() {
                         className={cn(
                           'shrink-0 rounded-2xl border px-5 py-3 text-left font-serif text-base transition-all sm:px-6 sm:text-lg lg:w-full',
                           selectedMonth === month
-                            ? 'scale-[1.02] border-olive bg-olive text-white shadow-lg lg:scale-105'
+                            ? 'border-olive bg-olive text-white shadow-lg ring-2 ring-olive/30'
                             : 'border-ink/5 bg-white/50 hover:bg-white sm:border',
                         )}
                       >
@@ -1414,11 +1397,8 @@ export default function App() {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       {(showAllCustoms ? monthData?.customs ?? [] : monthData?.customs?.slice(0, 8) ?? []).map((custom: MonthCustom, idx: number) => (
-                        <motion.div
+                        <div
                           key={idx}
-                          initial={{ opacity: 0, scale: 0.95 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          transition={{ delay: idx * 0.1 }}
                           className="bg-white p-6 rounded-[24px] card-shadow border border-ink/5 flex flex-col gap-4"
                         >
                           <div className="flex justify-between items-start">
@@ -1491,7 +1471,7 @@ export default function App() {
                               生成绘本
                             </button>
                           </div>
-                        </motion.div>
+                        </div>
                       ))}
                     </div>
 
@@ -1517,9 +1497,10 @@ export default function App() {
           {!isAdminRoute && activeTab === 'chat' && (
             <motion.div
               key="chat"
-              initial={{ opacity: 0, scale: 0.98 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.98 }}
+              initial={false}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.12 }}
               className="max-w-6xl mx-auto w-full min-h-[min(72vh,520px)] h-[calc(100dvh-14rem)] md:h-[72vh] md:max-h-[820px]"
             >
               <div className="h-full grid grid-cols-1 md:grid-cols-[260px_minmax(0,1fr)] gap-4 min-h-0">
@@ -1603,7 +1584,7 @@ export default function App() {
                     className="flex-1 overflow-y-auto space-y-6 p-4 scrollbar-hide bg-white/40 rounded-2xl border border-ink/10 card-shadow"
                     style={{
                       paddingBottom:
-                        chatComposerLift > 0 ? `calc(1rem + ${Math.round(chatComposerLift)}px)` : undefined,
+                        chatComposerInset > 0 ? `calc(1rem + ${chatComposerInset}px)` : undefined,
                     }}
                   >
                     {chatHistory.length === 0 && (
@@ -1712,13 +1693,7 @@ export default function App() {
                     )}
                   </div>
 
-                  <div
-                    className="mt-4 shrink-0"
-                    style={{
-                      transform: chatComposerLift ? `translateY(-${Math.round(chatComposerLift)}px)` : undefined,
-                      transition: 'transform 0.15s ease-out',
-                    }}
-                  >
+                  <div className="mt-4 shrink-0">
                     <form onSubmit={handleChat} className="relative pb-[max(0px,env(safe-area-inset-bottom))]">
                       <input
                         type="text"
@@ -1746,8 +1721,10 @@ export default function App() {
           {!isAdminRoute && activeTab === 'geo' && (
             <motion.div
               key="geo"
-              initial={{ opacity: 0 }}
+              initial={false}
               animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.12 }}
               className="grid grid-cols-1 items-start gap-4 lg:grid-cols-12 lg:gap-8"
             >
               <div className="flex w-full min-w-0 flex-col gap-3 self-start lg:col-span-3 lg:sticky lg:top-24 lg:max-h-[calc(100dvh-8rem)] lg:pr-1">
@@ -1808,7 +1785,7 @@ export default function App() {
                       className={cn(
                         'shrink-0 rounded-2xl border px-5 py-3 text-left font-serif text-base transition-all sm:px-6 sm:text-lg lg:w-full',
                         selectedMonth === month
-                          ? 'scale-[1.02] border-olive bg-olive text-white shadow-lg lg:scale-105'
+                          ? 'border-olive bg-olive text-white shadow-lg ring-2 ring-olive/30'
                           : 'border-ink/10 bg-white/60 text-ink/80 hover:bg-white sm:border',
                       )}
                     >
@@ -1897,12 +1874,9 @@ export default function App() {
                 {geoPlaces.map((place, i) => {
                   const glossHits = glossaryMatchesForPlace(place, geoGlossary);
                   return (
-                  <motion.div 
-                    key={place.id} 
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.05 }}
-                    className="bg-white p-6 rounded-[24px] card-shadow border border-ink/5 group hover:border-olive/30 transition-all"
+                  <div
+                    key={place.id}
+                    className="bg-white p-6 rounded-[24px] card-shadow border border-ink/5 group hover:border-olive/30 transition-colors"
                   >
                     <div className="flex justify-between items-start gap-2 mb-3">
                       <div className="min-w-0">
@@ -2032,7 +2006,7 @@ export default function App() {
                         </div>
                       </div>
                     </div>
-                  </motion.div>
+                  </div>
                   );
                 })}
                 </div>
@@ -2100,8 +2074,10 @@ export default function App() {
           {!isAdminRoute && activeTab === 'graph' && (
             <motion.div
               key="graph"
-              initial={{ opacity: 0 }}
+              initial={false}
               animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.12 }}
               className="grid grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)] gap-4 sm:gap-6 flex-1 min-h-0 w-full lg:min-h-[760px]"
             >
               <aside className="self-start bg-white/70 rounded-2xl border border-ink/10 p-4 flex flex-col gap-3 max-h-[38dvh] overflow-y-auto overscroll-y-contain lg:max-h-none lg:min-h-[760px] lg:h-[760px] lg:overflow-y-auto">
@@ -2162,7 +2138,7 @@ export default function App() {
                   ))}
                 </div>
                 <p className="text-[11px] text-ink/50 leading-relaxed">
-                  当前月份：{graphMonth ?? '全部月份'}。月令、地景、叙事三视图统一按该月份抽取子图。
+                  当前月份：{graphMonth ?? '全部月份'}。三维、地景、叙事三视图统一按该月份抽取子图。
                 </p>
               </aside>
 
@@ -2179,9 +2155,10 @@ export default function App() {
           {!isAdminRoute && activeTab === 'book' && (
             <motion.div
               key="book"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
+              initial={false}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.12 }}
             >
               <PictureBookView key={bookViewKey} initialTopic={bookInitialTopic} initialCardSource={bookCardSource} />
             </motion.div>

@@ -392,22 +392,27 @@ export default function FolkloreGraph({ onOpenQjlSection, month }: FolkloreGraph
     const el = containerRef.current;
     if (!el) return;
 
-    const updateDimensions = () => {
-      if (containerRef.current) {
-        const w = containerRef.current.clientWidth;
-        const h = containerRef.current.clientHeight;
-        if (w > 0 && h > 0) {
-          setDimensions({ width: w, height: h });
-        }
-      }
+    const applyDimensions = () => {
+      if (!containerRef.current) return;
+      const w = containerRef.current.clientWidth;
+      const h = containerRef.current.clientHeight;
+      if (w <= 0 || h <= 0) return;
+      setDimensions((prev) => (prev.width === w && prev.height === h ? prev : { width: w, height: h }));
     };
 
-    updateDimensions();
-    window.addEventListener('resize', updateDimensions);
-    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(updateDimensions) : null;
+    let debounceId = 0;
+    const scheduleDimensions = () => {
+      window.clearTimeout(debounceId);
+      debounceId = window.setTimeout(applyDimensions, 80);
+    };
+
+    applyDimensions();
+    window.addEventListener('resize', scheduleDimensions);
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(scheduleDimensions) : null;
     ro?.observe(el);
     return () => {
-      window.removeEventListener('resize', updateDimensions);
+      window.clearTimeout(debounceId);
+      window.removeEventListener('resize', scheduleDimensions);
       ro?.disconnect();
     };
   }, []);
@@ -514,7 +519,7 @@ export default function FolkloreGraph({ onOpenQjlSection, month }: FolkloreGraph
       const ok = selectNodeInCurrentView(neighborId);
       if (!ok) {
         showGraphNotice(
-          '该节点不在当前视图投影中（如文献、物件等仅出现在全图语义里，可切换「月令」视图查看人物等）。'
+          '该节点不在当前视图投影中（如文献、物件等仅出现在全图语义里，可切换「三维」视图查看人物等）。'
         );
       }
     },
@@ -1050,7 +1055,7 @@ export default function FolkloreGraph({ onOpenQjlSection, month }: FolkloreGraph
             title="时令 · 习俗 · 人物"
           >
             <Layers size={12} />
-            <span className="hidden sm:inline">月令</span>
+            <span className="hidden sm:inline">三维</span>
           </button>
           <button
             type="button"

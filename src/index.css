@@ -21,6 +21,12 @@ body {
   overflow-x: clip;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  html:focus-within {
+    scroll-behavior: auto;
+  }
+}
+
 .serif {
   @apply font-serif;
 }

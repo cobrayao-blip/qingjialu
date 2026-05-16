@@ -32,7 +32,7 @@ export function UserLoginForm(props: UserLoginFormProps) {
       key="user-login"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="min-h-[100dvh] min-h-screen flex items-center justify-center bg-paper text-ink px-4 py-6 pt-[max(1.5rem,env(safe-area-inset-top))] pb-[max(1.5rem,env(safe-area-inset-bottom))]"
+      className="min-h-dvh flex items-center justify-center bg-paper text-ink px-4 py-6 pt-[max(1.5rem,env(safe-area-inset-top))] pb-[max(1.5rem,env(safe-area-inset-bottom))]"
     >
       <div className="w-full max-w-md bg-white rounded-[24px] border border-ink/10 p-6 space-y-4">
         <div className="text-center space-y-2">
