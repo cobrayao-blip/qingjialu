@@ -2162,7 +2162,7 @@ export default function App() {
                   ))}
                 </div>
                 <p className="text-[11px] text-ink/50 leading-relaxed">
-                  当前月份：{graphMonth ?? '全部月份'}。三维、地景、叙事三视图统一按该月份抽取子图。
+                  当前月份：{graphMonth ?? '全部月份'}。月令、地景、叙事三视图统一按该月份抽取子图。
                 </p>
               </aside>
 

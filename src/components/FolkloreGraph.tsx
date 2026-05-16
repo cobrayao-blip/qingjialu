@@ -514,7 +514,7 @@ export default function FolkloreGraph({ onOpenQjlSection, month }: FolkloreGraph
       const ok = selectNodeInCurrentView(neighborId);
       if (!ok) {
         showGraphNotice(
-          '该节点不在当前视图投影中（如文献、物件等仅出现在全图语义里，可切换「三维」视图查看人物等）。'
+          '该节点不在当前视图投影中（如文献、物件等仅出现在全图语义里，可切换「月令」视图查看人物等）。'
         );
       }
     },
@@ -1050,7 +1050,7 @@ export default function FolkloreGraph({ onOpenQjlSection, month }: FolkloreGraph
             title="时令 · 习俗 · 人物"
           >
             <Layers size={12} />
-            <span className="hidden sm:inline">三维</span>
+            <span className="hidden sm:inline">月令</span>
           </button>
           <button
             type="button"
